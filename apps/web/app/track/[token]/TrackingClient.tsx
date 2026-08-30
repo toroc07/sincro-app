@@ -8,6 +8,7 @@ import {
   AlertIcon, AmbulanceIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon,
   LungsIcon, TraumaIcon, UnconsciousIcon,
 } from '@/src/components/ui/icons';
+import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
 import type { RouteResult } from '@/src/lib/routing';
 
@@ -76,7 +77,10 @@ export function TrackingClient({ token }: { token: string }) {
     <main className="app-light mobile-app-shell safe-x pb-10">
       <header className="safe-top pb-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-content-muted">Emergencia · <span className="tnum">{tracking.incidentCode}</span></p>
+          <div className="flex min-w-0 items-center gap-2">
+            <BrandMark size={26} />
+            <p className="text-xs font-bold uppercase tracking-[.16em] text-content-muted">Emergencia · <span className="tnum">{tracking.incidentCode}</span></p>
+          </div>
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${offline ? 'bg-warn-soft text-warn' : 'bg-ok-soft text-ok'}`}>{offline ? 'Reconectando' : 'En vivo'}</span>
         </div>
         <ProgressStrip currentIndex={currentIndex} />

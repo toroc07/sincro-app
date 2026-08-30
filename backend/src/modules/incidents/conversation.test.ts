@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { converseTurn, synthesizeSpeech } from './conversation.js';
+import { converseTurn, splitSpeakable, streamConverseTurn, synthesizeSpeech } from './conversation.js';
 
 describe('converseTurn', () => {
   const ORIGINAL_KEY = process.env.GROQ_API_KEY;
@@ -132,6 +132,116 @@ describe('converseTurn', () => {
     expect(systemMessage).toContain('ya viene');
     expect(systemMessage).toContain('está en camino');
     expect(systemMessage).toContain('tiempos de llegada');
+  });
+});
+
+/** Respuesta de Groq en modo stream: SSE con una línea `data:` por token. */
+function sseResponse(deltas: readonly string[], { split = false } = {}) {
+  const lines = [
+    ...deltas.map((delta) => `data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`),
+    'data: [DONE]\n\n',
+  ];
+  const encoder = new TextEncoder();
+  const payload = lines.join('');
+  // `split` parte el SSE por la mitad de una línea: así se prueba que el
+  // parser aguanta un chunk de red que corta un evento en dos.
+  const chunks = split
+    ? [payload.slice(0, Math.floor(payload.length / 2)), payload.slice(Math.floor(payload.length / 2))]
+    : lines;
+  return {
+    ok: true,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        controller.close();
+      },
+    }),
+  };
+}
+
+describe('streamConverseTurn', () => {
+  const ORIGINAL_KEY = process.env.GROQ_API_KEY;
+
+  beforeEach(() => { process.env.GROQ_API_KEY = 'test-key'; });
+  afterEach(() => {
+    process.env.GROQ_API_KEY = ORIGINAL_KEY;
+    vi.unstubAllGlobals();
+  });
+
+  it('entrega los fragmentos a medida que llegan y devuelve la respuesta completa', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(['Mantén ', 'la calma.', ' Haz presión.'])));
+    const deltas: string[] = [];
+    const { reply } = await streamConverseTurn('se está desangrando', [], (delta) => deltas.push(delta));
+
+    expect(deltas).toEqual(['Mantén ', 'la calma.', ' Haz presión.']);
+    expect(reply).toBe('Mantén la calma. Haz presión.');
+  });
+
+  it('reconstruye eventos partidos entre dos chunks de red', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(['uno ', 'dos ', 'tres'], { split: true })));
+    const { reply } = await streamConverseTurn('hola', [], () => {});
+    expect(reply).toBe('uno dos tres');
+  });
+
+  it('pide stream a Groq con el mismo prompt y protocolo que la versión no-stream', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(sseResponse(['ok']));
+    vi.stubGlobal('fetch', fetchSpy);
+    const { detectedTypes } = await streamConverseTurn('se cayó de una escalera', [], () => {});
+
+    const body = JSON.parse(fetchSpy.mock.calls[0]![1].body);
+    expect(body.stream).toBe(true);
+    expect(body.messages[0].content).toContain('FALL');
+    expect(detectedTypes).toEqual(['FALL']);
+  });
+
+  it('lanza si el stream no trae ni un token de contenido', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse([])));
+    await expect(streamConverseTurn('hola', [], () => {})).rejects.toThrow(/no respondió/);
+  });
+
+  it('ignora una línea malformada sin perder el resto del stream', async () => {
+    const encoder = new TextEncoder();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: {no es json\n\n'));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'sigue vivo' } }] })}\n\n`));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        },
+      }),
+    }));
+    const { reply } = await streamConverseTurn('hola', [], () => {});
+    expect(reply).toBe('sigue vivo');
+  });
+});
+
+describe('splitSpeakable', () => {
+  it('no corta hasta tener el mínimo de caracteres pedido', () => {
+    expect(splitSpeakable('Ok. ', 24)).toBeNull();
+    expect(splitSpeakable('Ok.', 2)).toEqual({ chunk: 'Ok.', rest: '' });
+  });
+
+  it('corta en el primer fin de frase que supera el mínimo', () => {
+    const cut = splitSpeakable('Mantén la calma y no lo muevas. Haz presión sobre la herida.', 24);
+    expect(cut).toEqual({ chunk: 'Mantén la calma y no lo muevas.', rest: ' Haz presión sobre la herida.' });
+  });
+
+  it('no confunde un decimal con un fin de frase', () => {
+    expect(splitSpeakable('La herida mide 3.5 centímetros de largo', 10)).toBeNull();
+  });
+
+  it('corta por la fuerza si el modelo escribe sin puntuación', () => {
+    const long = 'palabra '.repeat(40);
+    const cut = splitSpeakable(long, 24, 60);
+    expect(cut).not.toBeNull();
+    expect(cut!.chunk.length).toBeLessThanOrEqual(60);
+    expect(cut!.chunk + cut!.rest).toHaveLength(long.length);
+  });
+
+  it('devuelve null mientras la frase siga incompleta', () => {
+    expect(splitSpeakable('Mantén la calma y no lo muevas mientras', 24)).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import { MAX_AUDIO_BYTES, zAudioReportRequest } from '@dispatch/contracts';
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
 import { createIncidentFromAudio } from '@/src/server/modules/incidents';
 import { runDispatch } from '@/src/server/modules/dispatch';
+import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 import { readIdempotencyKey, readJson } from '../_shared';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,9 @@ export async function POST(request: Request): Promise<Response> {
     // no verá asignación todavía.
     if (!result.wasMerged) {
       try {
+        // Una oferta vieja sin contestar mantiene la unidad reservada: si no se
+        // caduca primero, este reporte nace directamente en NO_RESOURCE.
+        await sweepExpiredOffers();
         await runDispatch(result.incidentId, { mode: 'AUTO_ASSIGN' }, { triggeredBy: 'AUTO' });
       } catch (dispatchError) {
         console.error('auto-dispatch falló tras reporte de audio', dispatchError);

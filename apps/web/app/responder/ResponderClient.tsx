@@ -3,12 +3,13 @@
 import { estimateEta, type Assignment, type Incident, type VehicleWithLocation } from '@dispatch/contracts';
 import { useEffect, useRef, useState } from 'react';
 import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon } from '@/src/components/ui/icons';
-import { Badge, Button } from '@/src/components/ui';
+import { Badge, BrandLockup, BrandMark, Button } from '@/src/components/ui';
 import { LiveRouteMap } from '@/src/components/map/LiveRouteMap';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
 import { useLiveResource } from '@/src/hooks/useLiveResource';
 import type { RouteResult } from '@/src/lib/routing';
 import { useVehicleTracking, type GpsState } from './useVehicleTracking';
+import { useOfferAlert } from './useOfferAlert';
 import { assignmentActionOutcome } from './responderState';
 
 /** Misma unidad que UNIVERSAL_VEHICLE_ID en src/server/modules/vehicles —
@@ -64,6 +65,7 @@ export function ResponderClient() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [alertsArmed, setAlertsArmed] = useState(false);
   const redispatchingRef = useRef(false);
 
   useKeepAlive();
@@ -72,9 +74,21 @@ export function ResponderClient() {
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/responder/sw.js', { scope: '/responder/' });
   }, []);
 
+  // El navegador solo deja timbrar, vibrar y notificar después de que el
+  // conductor haya tocado la pantalla al menos una vez. Se aprovecha el primer
+  // toque —el que sea— para pedir el permiso y dejar el canal listo, en vez de
+  // descubrir que el teléfono estaba mudo justo cuando entra la emergencia.
   useEffect(() => {
-    if (assignment?.status === 'OFFERED') navigator.vibrate?.([500, 180, 500, 180, 900]);
-  }, [assignment?.id, assignment?.status]);
+    const arm = () => {
+      setAlertsArmed(true);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+    };
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') setAlertsArmed(true);
+    window.addEventListener('pointerdown', arm, { once: true });
+    return () => window.removeEventListener('pointerdown', arm);
+  }, []);
 
   // Late de respaldo con el centro de Cartagena: el despacho excluye una
   // unidad con ubicación de más de 5 min. Si el navegador niega el GPS o
@@ -112,19 +126,47 @@ export function ResponderClient() {
     return () => window.clearTimeout(timer);
   }, [incident, assignment, live]);
 
+  const acceptOffer = async (assignmentId: string) => {
+    const response = await fetch(`/api/assignments/${encodeURIComponent(assignmentId)}/accept`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    return assignmentActionOutcome(response.status);
+  };
+
+  /** Vuelve a despachar el incidente y devuelve el id de la oferta nueva.
+   *  Se usa cuando la anterior caducó: aquí no hay otra unidad a la que
+   *  ofrecérsela, así que la oferta vuelve a esta misma ambulancia. */
+  const claimFreshOffer = async (incidentId: string): Promise<string | null> => {
+    const response = await fetch(`/api/incidents/${encodeURIComponent(incidentId)}/dispatch`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'AUTO_ASSIGN' }),
+    });
+    if (!response.ok) return null;
+    const result = await response.json() as { assignment: { id: string } | null };
+    return result.assignment?.id ?? null;
+  };
+
   /** Acepta la oferta si hace falta y marca la unidad en camino en un solo
    *  paso — el ciudadano ya lo ve reflejado en su seguimiento en vivo. */
   const notifyEnRoute = async () => {
-    if (!assignment || !assignedVehicle || busy) return;
+    if (!incident || !assignment || !assignedVehicle || busy) return;
     setBusy(true); setMessage(null);
     try {
+      let assignmentId = assignment.id;
       if (assignment.status === 'OFFERED') {
-        const response = await fetch(`/api/assignments/${encodeURIComponent(assignment.id)}/accept`, {
-          method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
-        });
-        const outcome = assignmentActionOutcome(response.status);
+        let outcome = await acceptOffer(assignmentId);
+        // La oferta caduca a los 30 s. Al conductor, que estaba mirando el
+        // mapa o arrancando, decirle "esta asignación ya no está disponible"
+        // sobre un reporte que sigue en su pantalla es mentira y le hace
+        // perder el viaje: se vuelve a pedir la oferta y se acepta esa.
+        if (outcome.kind === 'conflict') {
+          const fresh = await claimFreshOffer(incident.id);
+          if (!fresh) { setMessage(outcome.message); await live.refresh(); return; }
+          assignmentId = fresh;
+          outcome = await acceptOffer(assignmentId);
+        }
         if (outcome.kind === 'conflict') { setMessage(outcome.message); await live.refresh(); return; }
-        if (!response.ok) throw new Error('No se pudo aceptar el reporte');
+        if (outcome.kind === 'error') throw new Error('No se pudo aceptar el reporte');
       }
       const statusResponse = await fetch(`/api/vehicles/${encodeURIComponent(assignedVehicle.id)}/status`, {
         method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'EN_ROUTE' }),
@@ -139,6 +181,24 @@ export function ResponderClient() {
   };
 
   const notified = Boolean(assignment && assignment.status !== 'OFFERED' && assignment.status !== 'ACCEPTED');
+
+  // El reporte TIMBRA, vibra y se lee en voz alta hasta que el conductor pulsa
+  // "voy en camino" — como una carrera entrante de Didi/inDriver, no como una
+  // notificación silenciosa que se pierde entre otras. Se engancha al
+  // incidente y no a la asignación a propósito: el panel ya muestra el reporte
+  // en cuanto entra, y esperar a que el motor asigne sería regalar segundos.
+  useOfferAlert(
+    Boolean(incident) && !notified,
+    incident?.id ?? null,
+    incident
+      ? {
+          type: incident.type,
+          address: incident.address,
+          patientCount: incident.patientCount,
+          priority: incident.priority,
+        }
+      : null,
+  );
 
   // El GPS del propio dispositivo va por delante del que ya viajó al servidor:
   // para SU mapa, el conductor debe verse donde está, no donde estaba hace unos
@@ -165,7 +225,7 @@ export function ResponderClient() {
       />
 
       {!incident ? (
-        <IdleState gps={tracking.state} />
+        <IdleState gps={tracking.state} alertsArmed={alertsArmed} />
       ) : (
         <>
           <div className="mt-4 flex items-start justify-between gap-3">
@@ -279,9 +339,14 @@ function ResponderHeader({ gps, queued, tone, status }: {
   return (
     <header className={`responder-header ${backgrounds[tone]}`}>
       <div className="flex items-center justify-between gap-3">
-        <div className="px-2">
-          <span className="block text-[10px] font-bold uppercase tracking-[.18em] opacity-75">Panel de</span>
-          <span className="block text-2xl font-bold leading-tight">Ambulancia</span>
+        <div className="flex items-center gap-2.5 px-2">
+          {/* Tinta blanca: la cabecera cambia de color según el estado y el
+              isotipo a color se ensucia sobre el rojo. */}
+          <BrandMark size={34} tone="white" />
+          <span>
+            <span className="block text-[10px] font-bold uppercase tracking-[.18em] opacity-75">SINCRO · Panel de</span>
+            <span className="block text-2xl font-bold leading-tight">Ambulancia</span>
+          </span>
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30">{status}</span>
@@ -297,7 +362,7 @@ function ResponderHeader({ gps, queued, tone, status }: {
 /** Sin reportes: la pantalla debe leerse de un vistazo desde el asiento del
  *  conductor y dejar claro que el panel SÍ está escuchando. Si además el GPS
  *  no está enviando, eso es lo único accionable aquí y se dice explícitamente. */
-function IdleState({ gps }: { gps: GpsState }) {
+function IdleState({ gps, alertsArmed }: { gps: GpsState; alertsArmed: boolean }) {
   const gpsBroken = gps === 'denied' || gps === 'unsupported' || gps === 'offline';
   return (
     <section className="my-auto flex flex-col items-center py-12 text-center">
@@ -309,14 +374,25 @@ function IdleState({ gps }: { gps: GpsState }) {
       </span>
       <h1 className="mt-6 text-xl font-bold">Sin reportes activos</h1>
       <p className="mt-2 max-w-xs text-sm leading-relaxed text-content-secondary">
-        La unidad está disponible. Te avisamos con vibración apenas llegue un reporte de un ciudadano.
+        La unidad está disponible. Apenas un ciudadano reporte, el teléfono suena, vibra y te lee la
+        emergencia en voz alta.
       </p>
+      {!alertsArmed && (
+        <p className="mt-5 flex items-start gap-2 rounded-xl bg-info-soft px-4 py-3 text-left text-sm font-semibold text-info">
+          <AlertIcon className="mt-0.5 shrink-0" size={18} />
+          Toca la pantalla una vez para activar el timbre y el aviso: el navegador no deja sonar sin
+          un primer toque.
+        </p>
+      )}
       {gpsBroken && (
         <p className="mt-5 flex items-start gap-2 rounded-xl bg-warn-soft px-4 py-3 text-left text-sm font-semibold text-warn">
           <AlertIcon className="mt-0.5 shrink-0" size={18} />
           Sin GPS activo el despacho no puede calcular tu distancia. Permite la ubicación en el navegador.
         </p>
       )}
+      {/* Pantalla de espera: es la que más horas está encendida en el
+          parabrisas, y el único hueco donde la marca no le quita sitio a nada. */}
+      <BrandLockup height={26} className="mt-10 opacity-50" />
     </section>
   );
 }

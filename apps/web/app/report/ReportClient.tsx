@@ -3,11 +3,11 @@
 import type { ApiError, AudioReportResponse, IncidentType } from '@dispatch/contracts';
 import { useCallback, useEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import {
   AlertIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon, LocationIcon,
   LungsIcon, MicIcon, RetryIcon, SendIcon, SosIcon, StopIcon, UnconsciousIcon,
 } from '@/src/components/ui/icons';
+import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
 import { useAudioRecorder } from './useAudioRecorder';
 
@@ -144,9 +144,11 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
   return (
     <main className="app-light mobile-app-shell safe-x flex flex-col">
       <header className="safe-top flex items-center gap-3 pb-4 animate-fade-up">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emergency text-white shadow-lg" aria-hidden><SosIcon size={27} /></span>
+        {/* El isotipo sustituye al cuadro rojo genérico: dice lo mismo (cruz
+            médica) y además identifica el sistema. El titular sigue mandando. */}
+        <BrandMark size={48} />
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[.18em] text-emergency">Emergencia</p>
+          <p className="text-[11px] font-bold uppercase tracking-[.18em] text-emergency">SINCRO · Emergencia</p>
           <h1 className="text-[22px] font-bold leading-tight tracking-tight min-[360px]:text-[24px]">Describe qué está pasando</h1>
         </div>
       </header>

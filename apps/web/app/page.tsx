@@ -5,7 +5,7 @@ import { CITIZEN_SESSION_COOKIE, verifyCitizenSession } from '@/src/server/infra
 import { ReportClient } from './report/ReportClient';
 
 export const metadata: Metadata = {
-  title: 'Emergencia · Despacho Cartagena',
+  title: 'Emergencia · SINCRO',
   description: 'Reporta una emergencia con tu voz y sigue la ayuda en tiempo real.',
 };
 

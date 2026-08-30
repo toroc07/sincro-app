@@ -1,11 +1,14 @@
 import { zDispatchRequest, zDispatchResponse } from '@dispatch/contracts';
 import { runDispatch } from '@/src/server/modules/dispatch';
-import { dispatchApiError, optionalJson } from '@/app/api/dispatch/_shared';
+import { dispatchApiError, optionalJson, sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await context.params;
     const input = zDispatchRequest.parse(await optionalJson(request));
+    // El panel reintenta esta ruta mientras no tenga asignación: es el momento
+    // exacto para soltar la unidad que quedó reservada por una oferta vieja.
+    await sweepExpiredOffers();
     const result = await runDispatch(id, input, {
       idempotencyKey: request.headers.get('Idempotency-Key'),
       triggeredBy: 'DISPATCHER',

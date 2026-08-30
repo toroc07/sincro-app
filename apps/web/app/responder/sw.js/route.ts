@@ -14,6 +14,16 @@ self.addEventListener('fetch', (event) => {
     return response;
   }).catch(() => caches.match(request).then((cached) => cached || caches.match('/responder'))));
 });
+// Tocar el aviso lleva al panel: si ya hay una pestaña abierta se enfoca esa,
+// para no dejar dos paneles compitiendo por el mismo reporte.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const open = windows.find((client) => client.url.includes('/responder'));
+    if (open) return open.focus();
+    return clients.openWindow('/responder');
+  }));
+});
 `;
 
 export async function GET(): Promise<Response> {

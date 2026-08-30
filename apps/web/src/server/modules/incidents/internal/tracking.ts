@@ -11,12 +11,17 @@
  */
 
 import {
-  estimateEta,
   toTrackingStep,
   type TrackingResponse,
   type TrackingStep,
 } from '@dispatch/contracts';
 import { db } from '@/src/server/infra/db';
+import { fetchGraphRoute } from '@/src/server/infra/routing';
+
+/** El seguimiento se refresca cada pocos segundos: si el servicio de rutas
+ *  está dormido, es preferible el ETA en línea recta al instante que una
+ *  pantalla congelada esperando el A*. */
+const ROUTE_TIMEOUT_MS = 2_500;
 
 interface IncidentRow {
   id: string;
@@ -117,18 +122,24 @@ export async function getTracking(trackingToken: string): Promise<TrackingRespon
   // ETA recalculado EN VIVO desde la posicion actual del vehiculo, no el ETA
   // congelado del momento del despacho. Es lo que hace que la cuenta atras se
   // sienta real mientras la unidad se acerca.
+  //
+  // Por la RUTA REAL de calles, la misma que dibuja el mapa que el ciudadano
+  // tiene justo encima: con la linea recta, el numero grande de la pantalla y
+  // el trazo azul del mapa se contradecian cada vez que habia que rodear la
+  // bahia. Si el servicio del grafo no responde, `fetchGraphRoute` degrada
+  // solo a la estimacion recta.
   let etaSeconds: number | null = null;
   let distanceM: number | null = null;
 
   const vehicleMoving = step === 'ON_THE_WAY';
   if (vehicleMoving && assignment?.v_lat != null && assignment.v_lng != null) {
-    const eta = estimateEta(
+    const route = await fetchGraphRoute(
       { lat: assignment.v_lat, lng: assignment.v_lng },
       { lat: incident.lat, lng: incident.lng },
-      new Date(now).getHours(),
+      ROUTE_TIMEOUT_MS,
     );
-    etaSeconds = eta.etaSeconds;
-    distanceM = eta.distanceM;
+    etaSeconds = Math.round(route.durationSeconds);
+    distanceM = Math.round(route.distanceMeters);
   }
 
   const timeline: TrackingResponse['timeline'] = [

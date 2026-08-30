@@ -45,7 +45,17 @@ export interface ConverseResult {
   detectedTypes: IncidentType[];
 }
 
-export async function converseTurn(userMessage: string, history: readonly ConversationTurn[]): Promise<ConverseResult> {
+interface PreparedTurn {
+  apiKey: string;
+  messages: Array<{ role: string; content: string }>;
+  detectedTypes: IncidentType[];
+}
+
+/** Prompt + historial del turno. Compartido por la versión de una sola
+ *  respuesta (`converseTurn`) y la de streaming (`streamConverseTurn`): el
+ *  límite del §24 debe ser idéntico por los dos caminos, no reescrito en dos
+ *  sitios que puedan divergir. */
+function prepareTurn(userMessage: string, history: readonly ConversationTurn[]): PreparedTurn {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new HttpError(500, 'INTERNAL', 'Conversación no configurada (falta GROQ_API_KEY)');
 
@@ -60,12 +70,20 @@ export async function converseTurn(userMessage: string, history: readonly Conver
     ? `${CALL_SYSTEM_PROMPT}\n\n${formatFirstAidProtocols(detectedTypes)}`
     : CALL_SYSTEM_PROMPT;
 
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    // Suficiente memoria para una llamada de emergencia corta, sin dejar crecer el prompt sin límite.
-    ...history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })),
-    { role: 'user', content: userMessage },
-  ];
+  return {
+    apiKey,
+    detectedTypes,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      // Suficiente memoria para una llamada de emergencia corta, sin dejar crecer el prompt sin límite.
+      ...history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })),
+      { role: 'user', content: userMessage },
+    ],
+  };
+}
+
+export async function converseTurn(userMessage: string, history: readonly ConversationTurn[]): Promise<ConverseResult> {
+  const { apiKey, messages, detectedTypes } = prepareTurn(userMessage, history);
 
   const response = await fetch(GROQ_CHAT_URL, {
     method: 'POST',
@@ -78,6 +96,105 @@ export async function converseTurn(userMessage: string, history: readonly Conver
   const reply = payload.choices?.[0]?.message?.content?.trim();
   if (!reply) throw new HttpError(502, 'INTERNAL', 'El asistente de voz no respondió');
   return { reply: reply.slice(0, 2000), detectedTypes };
+}
+
+/**
+ * Igual que `converseTurn` pero entregando el texto A MEDIDA que el modelo lo
+ * genera. Es la mitad del ahorro de latencia de la llamada: con la respuesta
+ * completa había que esperar a que el LLM terminara TODO antes de empezar a
+ * sintetizar voz; así la primera frase se puede sintetizar y oír mientras el
+ * modelo aún escribe la segunda.
+ *
+ * `onDelta` recibe fragmentos crudos (trozos de token, no frases). Quien
+ * llama decide dónde cortar para hablar — ver `splitSpeakable`.
+ */
+export async function streamConverseTurn(
+  userMessage: string,
+  history: readonly ConversationTurn[],
+  onDelta: (delta: string) => void,
+): Promise<ConverseResult> {
+  const { apiKey, messages, detectedTypes } = prepareTurn(userMessage, history);
+
+  const response = await fetch(GROQ_CHAT_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS, messages, stream: true,
+    }),
+  });
+  if (!response.ok) throw new HttpError(502, 'INTERNAL', `El asistente de voz falló (${response.status})`);
+  if (!response.body) throw new HttpError(502, 'INTERNAL', 'El asistente de voz no respondió');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let reply = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let newline = buffer.indexOf('\n');
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf('\n');
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) {
+          reply += delta;
+          onDelta(delta);
+        }
+      } catch {
+        // Una línea suelta malformada no debe tumbar la llamada entera: el
+        // resto del stream sigue siendo utilizable.
+      }
+    }
+  }
+
+  const trimmed = reply.trim();
+  if (!trimmed) throw new HttpError(502, 'INTERNAL', 'El asistente de voz no respondió');
+  return { reply: trimmed.slice(0, 2000), detectedTypes };
+}
+
+/** Puntuación donde una frase se puede cerrar y mandar a sintetizar. */
+const SPEAKABLE_BOUNDARY = new Set(['.', '!', '?', '…', ';', ':', '\n']);
+
+/**
+ * Primer trozo hablable de un texto que aún se está generando, o `null` si
+ * todavía no hay suficiente para que suene natural.
+ *
+ * `minChars` es la palanca de latencia: bajo en el primer trozo (que el
+ * reportero oiga voz cuanto antes) y alto en los siguientes (una vez ya hay
+ * audio sonando, cortar corto solo suena entrecortado). `maxChars` corta por
+ * la fuerza si el modelo escribe un párrafo sin puntuación.
+ */
+export function splitSpeakable(
+  pending: string,
+  minChars: number,
+  maxChars = 220,
+): { chunk: string; rest: string } | null {
+  for (let i = 0; i < pending.length; i += 1) {
+    if (!SPEAKABLE_BOUNDARY.has(pending[i] ?? '')) continue;
+    // "3.5 minutos" o "1:30" no son fin de frase.
+    if (/\d/.test(pending[i - 1] ?? '') && /\d/.test(pending[i + 1] ?? '')) continue;
+    const chunk = pending.slice(0, i + 1).trim();
+    if (chunk.length < minChars) continue;
+    return { chunk, rest: pending.slice(i + 1) };
+  }
+
+  if (pending.length > maxChars) {
+    const space = pending.lastIndexOf(' ', maxChars);
+    const at = space > minChars ? space : maxChars;
+    return { chunk: pending.slice(0, at).trim(), rest: pending.slice(at) };
+  }
+
+  return null;
 }
 
 /**

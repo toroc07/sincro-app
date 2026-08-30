@@ -4,7 +4,7 @@ import type { CitizenRegisterResponse } from '@dispatch/contracts';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertIcon } from '@/src/components/ui/icons';
-import { Button } from '@/src/components/ui';
+import { BrandLockup, Button } from '@/src/components/ui';
 
 export function LoginClient() {
   const router = useRouter();
@@ -40,8 +40,11 @@ export function LoginClient() {
   return (
     <main className="app-light mobile-app-shell safe-x flex flex-col justify-center">
       <header className="pb-6">
-        <p className="text-xs font-bold uppercase tracking-[.16em] text-emergency">Emergencias Cartagena</p>
-        <h1 className="mt-2 text-3xl font-bold leading-tight">Antes de reportar</h1>
+        {/* Pantalla de entrada: es el único sitio donde el lockup completo se
+            gana el espacio — quien llega aquí todavía no sabe a quién le está
+            dando su teléfono. */}
+        <BrandLockup height={52} />
+        <h1 className="mt-5 text-3xl font-bold leading-tight">Antes de reportar</h1>
         <p className="mt-2 text-content-secondary text-[15px] leading-relaxed">
           Dejanos tu contacto. Si tu reporte no da suficiente información, la ambulancia te llama directo a este teléfono.
         </p>
