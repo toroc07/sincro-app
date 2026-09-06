@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BrandLockup, Button } from '@/src/components/ui';
-import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon } from '@/src/components/ui/icons';
+import { LocationIcon, PhoneIcon, SosIcon } from '@/src/components/ui/icons';
 
 interface ReportHistory {
   id: string;
@@ -87,7 +87,7 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
     .join('');
 
   return (
-    <main className="app-light mobile-app-shell safe-x flex flex-col py-6 min-h-screen">
+    <main className="app-light mobile-app-shell safe-x flex flex-col py-6 min-h-screen screen-enter">
       {/* Cabecera con botón de retorno y marca */}
       <header className="flex items-center justify-between pb-4 border-b border-edge-subtle">
         <BrandLockup height={36} />
@@ -102,7 +102,7 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
       {/* Tarjeta de Perfil */}
       <section className="mt-5 rounded-2xl border border-edge-strong bg-surface-base p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emergency text-white font-bold text-lg shadow-sm">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emergency to-[#8a0f1e] text-white font-bold text-lg shadow-sm">
             {initials || 'CI'}
           </div>
           <div className="min-w-0 flex-1">
@@ -123,9 +123,12 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
         <div className="mt-4 flex items-center gap-2">
           <Link
             href="/"
-            className="flex-1 rounded-xl bg-emergency px-4 py-2.5 text-center text-xs font-bold text-white shadow-sm hover:bg-emergency-dark active:scale-[0.98] transition"
+            className="flex-1 rounded-xl bg-emergency px-4 py-2.5 text-center text-xs font-bold text-white shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition"
           >
-            🚨 Reportar Emergencia
+            <span className="inline-flex items-center justify-center gap-1.5">
+            <SosIcon size={15} />
+            Reportar Emergencia
+          </span>
           </Link>
           <Button
             onClick={() => void handleLogout()}
@@ -147,8 +150,10 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
         </div>
 
         {loading && (
-          <div className="my-auto py-12 text-center text-sm text-content-secondary">
-            Cargando historial de reportes…
+          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Cargando historial de reportes">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="skeleton h-24 rounded-2xl" style={{ animationDelay: `${i * 100}ms` }} />
+            ))}
           </div>
         )}
 
@@ -169,7 +174,7 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
 
         {!loading && reports.length > 0 && (
           <div className="flex flex-col gap-3 pb-8">
-            {reports.map((report) => {
+            {reports.map((report, i) => {
               const statusInfo = STATUS_BADGES[report.status] || {
                 label: report.status,
                 color: 'bg-surface-raised text-content-secondary border-edge-subtle',
@@ -182,7 +187,8 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
               return (
                 <div
                   key={report.id}
-                  className="rounded-2xl border border-edge-subtle bg-surface-base p-4 shadow-sm hover:border-edge-strong transition"
+                  className="rounded-2xl border border-edge-subtle bg-surface-base p-4 shadow-sm hover:border-edge-strong transition list-in"
+                  style={{ animationDelay: `${Math.min(i * 45, 300)}ms` }}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>

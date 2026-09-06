@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { estimateEta, type Assignment, type Incident, type VehicleWithLocation } from '@dispatch/contracts';
 import { useEffect, useRef, useState } from 'react';
-import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon } from '@/src/components/ui/icons';
+import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon, UserIcon } from '@/src/components/ui/icons';
 import { Badge, BrandLockup, BrandMark, Button } from '@/src/components/ui';
 import { LiveRouteMap } from '@/src/components/map/LiveRouteMap';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -226,7 +226,7 @@ export function ResponderClient() {
     : fallbackEta ? Math.max(1, Math.round(fallbackEta.etaSeconds / 60)) : null;
 
   return (
-    <main className="app-light responder-shell">
+    <main className="app-light responder-shell screen-enter">
       <ResponderHeader
         gps={tracking.state}
         queued={tracking.queued}
@@ -379,7 +379,7 @@ function ResponderHeader({
               className="rounded-full bg-white/20 hover:bg-white/30 px-2.5 py-1 text-xs font-bold text-white transition flex items-center gap-1 ring-1 ring-white/30"
               title="Ir al perfil de guardia del paramédico"
             >
-              <span>👤</span>
+              <UserIcon size={15} className="inline-block" />
               <span className="max-w-[95px] truncate">{staff ? staff.name : (activeShift ? `U-${activeShift.callsign}` : 'Mi Guardia')}</span>
             </Link>
             <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30">{status}</span>

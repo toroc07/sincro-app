@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   AlertIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon, LocationIcon,
   LungsIcon, MicIcon, PhoneIcon, RetryIcon, SendIcon, SosIcon, StopIcon, UnconsciousIcon,
+  UserIcon,
 } from '@/src/components/ui/icons';
 import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -169,7 +170,7 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
   const recording = recorder.recording;
 
   return (
-    <main className="app-light mobile-app-shell safe-x flex flex-col">
+    <main className="app-light mobile-app-shell safe-x flex flex-col screen-enter">
       <header className="safe-top flex items-center justify-between gap-3 pb-4 animate-fade-up">
         <div className="flex items-center gap-3 min-w-0">
           <BrandMark size={44} />
@@ -186,7 +187,7 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
               className="flex items-center gap-1.5 rounded-full border border-edge-strong bg-surface-base px-2.5 py-1 text-xs font-semibold text-content hover:bg-surface-raised transition shadow-sm"
               title="Ver mi perfil y reportes"
             >
-              <span className="text-sm">👤</span>
+              <UserIcon size={15} className="text-emergency" />
               <span className="max-w-[75px] truncate">{citizen.name.split(' ')[0]}</span>
             </Link>
           ) : (
@@ -385,7 +386,7 @@ function ReviewPanel({
             <span>Celular de contacto para la ambulancia</span>
           </span>
           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${hasValidPhone ? 'bg-ok-soft text-ok' : 'bg-emergency-soft text-emergency'}`}>
-            {hasValidPhone ? '✓ LISTO' : 'REQUERIDO'}
+            <span className="inline-flex items-center gap-1"><CheckIcon size={12} /> LISTO</span>
           </span>
         </label>
         <p className="mt-1 text-[11px] text-content-secondary">

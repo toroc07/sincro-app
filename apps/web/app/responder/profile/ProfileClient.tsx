@@ -8,7 +8,7 @@ import type {
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
+import { AlertIcon, AmbulanceIcon, BoltIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
 import { Badge, BrandMark, Button } from '@/src/components/ui';
 
 export function ProfileClient({ initialProfile }: { initialProfile: StaffProfileData }) {
@@ -123,7 +123,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
   const { user, activeShift, activeIncident, stats } = profile;
 
   return (
-    <main className="app-light mobile-app-shell safe-x flex flex-col py-5 min-h-screen">
+    <main className="app-light mobile-app-shell safe-x flex flex-col py-5 min-h-screen screen-enter">
       {/* Cabecera de Navegación y Perfil */}
       <header className="flex items-center justify-between pb-4 border-b border-edge-subtle">
         <Link
@@ -151,7 +151,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emergency-soft px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-emergency">
-              🚑 {user.role === 'RESPONDER' ? 'Paramédico / Rescatista' : user.role}
+              <AmbulanceIcon size={15} /> {user.role === 'RESPONDER' ? 'Paramédico / Rescatista' : user.role}
             </span>
             <h1 className="mt-1.5 text-xl font-bold text-content">{user.name}</h1>
             <p className="text-xs text-content-secondary">{user.orgId === 'org-ems' ? 'Red de Emergencias Cartagena' : user.orgId}</p>
@@ -211,9 +211,9 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
           )}
           <Link
             href="/responder"
-            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emergency py-3 text-sm font-bold text-white shadow-md hover:bg-emergency-dark active:scale-[0.98] transition w-full"
+            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emergency py-3 text-sm font-bold text-white shadow-md hover:bg-emergency-hover active:scale-[0.98] transition w-full"
           >
-            ⚡ Abrir Navegación GPS y Atender
+            <BoltIcon size={16} /> Abrir Navegación GPS y Atender
           </Link>
         </section>
       )}
@@ -249,9 +249,12 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
             <div className="mt-3 flex gap-2">
               <Link
                 href="/responder"
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-info py-2.5 text-xs font-bold text-white shadow-sm hover:bg-info-dark transition"
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-info py-2.5 text-xs font-bold text-white shadow-sm hover:bg-info transition"
               >
-                🚑 Ir a Consola GPS
+                <span className="flex items-center gap-1.5">
+                  <AmbulanceIcon size={15} />
+                  Ir a Consola GPS
+                </span>
               </Link>
               <Button
                 type="button"
@@ -304,9 +307,9 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
                 type="button"
                 disabled={loadingAction || !selectedVehicleId}
                 onClick={() => void handleStartShift()}
-                className="mt-1 bg-emergency hover:bg-emergency-dark text-white font-bold py-2.5 text-xs rounded-xl"
+                className="mt-1 bg-emergency hover:bg-emergency-hover text-white font-bold py-2.5 text-xs rounded-xl"
               >
-                {loadingAction ? 'Iniciando guardia…' : '🚀 Iniciar Turno en esta Ambulancia'}
+                {loadingAction ? 'Iniciando guardia…' : 'Iniciar Turno en esta Ambulancia'}
               </Button>
             </div>
           </div>
@@ -325,12 +328,16 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
         </div>
 
         {loadingHistory ? (
-          <div className="rounded-2xl bg-surface-base p-6 text-center text-xs text-content-muted border border-edge-subtle">
-            Cargando historial de emergencias…
+          <div className="flex flex-col gap-2.5">
+            <div className="skeleton h-24 rounded-xl border border-edge-subtle" />
+            <div className="skeleton h-24 rounded-xl border border-edge-subtle" style={{ animationDelay: '80ms' }} />
+            <div className="skeleton h-24 rounded-xl border border-edge-subtle" style={{ animationDelay: '160ms' }} />
           </div>
         ) : history.length === 0 ? (
           <div className="rounded-2xl bg-surface-base p-6 text-center border border-edge-subtle">
-            <span className="text-3xl">📋</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-raised text-content-muted mx-auto">
+              <LocationIcon size={20} />
+            </div>
             <p className="mt-2 text-xs font-bold text-content">Sin emergencias registradas aún</p>
             <p className="mt-1 text-[11px] text-content-secondary max-w-xs mx-auto">
               Las emergencias despachadas a tu unidad durante tus turnos aparecerán automáticamente aquí con su estado y resolución.

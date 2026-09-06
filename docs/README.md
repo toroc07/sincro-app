@@ -12,6 +12,7 @@ Bienvenido a la documentación técnica de **SINCRO** (Sistema Integrado de Comu
 | [**2. Sistema de Guardia y Gestión de Flota**](./02_SISTEMA_DE_GUARDIA_Y_FLOTA.md) | Ciclo de vida operativo del personal médico, autenticación, control de turno (iniciar/finalizar guardia), disponibilidad real de ambulancias y resolución de conflictos. |
 | [**3. Reporte Ciudadano y Enlace de Contacto**](./03_REPORTE_CIUDADANO_Y_CONTACTO.md) | Flujo de emergencia por voz inmediato sin registro, captura y validación de celular anónimo, geolocalización y enlace telefónico directo en cabina de ambulancia. |
 | [**4. Base de Datos, Migraciones y Semillas**](./04_BASE_DE_DATOS_Y_MIGRACIONES.md) | Esquema relacional en PostgreSQL (Neon), normalización de checksums en migraciones multiplataforma, scripts CLI y configuración de flota de reserva. |
+| [**5. Mejoras Visuales y Animaciones**](./MEJORAS-VISUALES.md) | Revisión visual del frontend: tema automático claro/oscuro, tokens semánticos, skeletons, animaciones escalonadas, iconos SVG y consistencia en login, centro de mando, perfiles y reporte. |
 
 ---
 

@@ -69,12 +69,12 @@ export function TrackingClient({ token }: { token: string }) {
   }, [token]);
 
   if (!tracking) {
-    return <main className="app-light mobile-app-shell safe-x flex items-center justify-center"><div className="text-center" role="status"><span className="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-edge-subtle border-t-emergency" /><p className="mt-4 text-content-secondary">{offline ? 'Sin conexión. Reintentando…' : 'Preparando tu seguimiento…'}</p></div></main>;
+    return <main className="app-light mobile-app-shell safe-x flex items-center justify-center" role="status"><div className="w-full max-w-sm px-2"><div className="skeleton h-14 rounded-2xl" /><div className="skeleton h-40 rounded-2xl mt-3" /><p className="mt-4 text-center text-content-secondary">{offline ? 'Sin conexión. Reintentando…' : 'Preparando tu seguimiento…'}</p></div></main>;
   }
 
   const currentIndex = TRACKING_STEP.indexOf(tracking.step);
   return (
-    <main className="app-light mobile-app-shell safe-x pb-10">
+    <main className="app-light mobile-app-shell safe-x pb-10 screen-enter">
       <header className="safe-top pb-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">

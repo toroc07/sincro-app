@@ -83,15 +83,21 @@ export default function CommandCenterPage() {
 
   if (loading && !data) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mb-4">
-          <svg className="animate-spin h-6 w-6 text-sky-400" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
+      <div className="flex-1 p-4 flex flex-col gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skeleton h-[104px] rounded-xl" style={{ animationDelay: `${i * 60}ms` }} />
+          ))}
         </div>
-        <h2 className="text-lg font-bold text-white mb-1">Iniciando Centro de Mando Distrital</h2>
-        <p className="text-xs text-[#7286a5]">Sincronizando telemetría de ambulancias y red hospitalaria...</p>
+        <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-[400px]">
+          <div className="flex-1 skeleton rounded-2xl" />
+          <div className="w-full lg:w-[420px] xl:w-[460px] flex flex-col gap-3">
+            <div className="skeleton h-10 rounded-xl" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="skeleton h-16 rounded-xl" style={{ animationDelay: `${i * 80}ms` }} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -99,12 +105,12 @@ export default function CommandCenterPage() {
   if (error && !data) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="p-4 rounded-2xl bg-red-950/40 border border-red-500/30 max-w-md">
-          <h2 className="text-sm font-bold text-red-300 mb-1">Error de enlace operativo</h2>
-          <p className="text-xs text-red-400/80 mb-4">{error}</p>
+        <div className="p-4 rounded-2xl bg-emergency-soft border border-emergency/30 max-w-md animate-fade-up">
+          <h2 className="text-sm font-bold text-emergency mb-1">Error de enlace operativo</h2>
+          <p className="text-xs text-content-secondary mb-4">{error}</p>
           <button
             onClick={() => fetchOverview()}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold"
+            className="px-4 py-2 rounded-lg bg-emergency hover:bg-emergency-hover text-white text-xs font-semibold transition"
           >
             Reintentar enlace
           </button>
@@ -133,6 +139,7 @@ export default function CommandCenterPage() {
           value={metrics.totalVehicles}
           subtext="Unidades en red distrital"
           variant="sky"
+          index={0}
           trend="Total"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -146,6 +153,7 @@ export default function CommandCenterPage() {
           value={metrics.availableVehicles}
           subtext="Listas para despacho inmediato"
           variant="emerald"
+          index={1}
           trend="En guardia"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -159,6 +167,7 @@ export default function CommandCenterPage() {
           value={metrics.busyVehicles}
           subtext="En ruta, escena o traslado"
           variant="amber"
+          index={2}
           trend="Ocupadas"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -172,6 +181,7 @@ export default function CommandCenterPage() {
           value={metrics.activeIncidents}
           subtext="Incidentes en curso en la ciudad"
           variant="rose"
+          index={3}
           trend="Reportadas"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -185,6 +195,7 @@ export default function CommandCenterPage() {
           value={metrics.criticalIncidents}
           subtext="Prioridad vital con soporte ALS"
           variant="rose"
+          index={4}
           trend="P1 Rojo"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,6 +209,7 @@ export default function CommandCenterPage() {
           value={metrics.hospitalsCount}
           subtext="Hospitales y centros de trauma"
           variant="indigo"
+          index={5}
           trend="Receptores"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -221,50 +233,53 @@ export default function CommandCenterPage() {
         </div>
 
         {/* Lado Derecho: Pestañas Operativas del Centro de Mando */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] flex flex-col bg-[#0c1220] rounded-2xl border border-[#1b263b] overflow-hidden shrink-0 shadow-xl">
+        <div className="w-full lg:w-[420px] xl:w-[460px] flex flex-col bg-surface-base rounded-2xl border border-edge-strong overflow-hidden shadow-xl">
           {/* Navegación de pestañas */}
-          <div className="flex border-b border-[#1b263b] bg-[#090e1a] p-1.5 gap-1 shrink-0">
+          <div className="flex border-b border-edge-strong bg-surface-base/60 p-1.5 gap-1 shrink-0">
             <button
               onClick={() => setActiveTab('incidents')}
+              aria-pressed={activeTab === 'incidents'}
               className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'incidents'
-                  ? 'bg-[#16203a] text-rose-400 shadow-sm border border-white/10'
-                  : 'text-[#7286a5] hover:text-[#aebbd4]'
+                  ? 'bg-surface-overlay text-emergency shadow-sm border border-edge-strong'
+                  : 'text-content-muted hover:text-content-secondary'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${activeTab === 'incidents' ? 'bg-rose-400' : 'bg-slate-600'}`} />
+              <span className={`w-2 h-2 rounded-full ${activeTab === 'incidents' ? 'bg-emergency animate-pulse' : 'bg-content-muted'}`} />
               <span>Emergencias</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500/10 text-rose-300 font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emergency/10 text-emergency font-mono tnum">
                 {data?.incidents.length ?? 0}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('fleet')}
+              aria-pressed={activeTab === 'fleet'}
               className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'fleet'
-                  ? 'bg-[#16203a] text-emerald-400 shadow-sm border border-white/10'
-                  : 'text-[#7286a5] hover:text-[#aebbd4]'
+                  ? 'bg-surface-overlay text-ok shadow-sm border border-edge-strong'
+                  : 'text-content-muted hover:text-content-secondary'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${activeTab === 'fleet' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              <span className={`w-2 h-2 rounded-full ${activeTab === 'fleet' ? 'bg-ok' : 'bg-content-muted'}`} />
               <span>Ambulancias</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-ok/10 text-ok font-mono tnum">
                 {data?.vehicles.length ?? 0}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('hospitals')}
+              aria-pressed={activeTab === 'hospitals'}
               className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'hospitals'
-                  ? 'bg-[#16203a] text-sky-400 shadow-sm border border-white/10'
-                  : 'text-[#7286a5] hover:text-[#aebbd4]'
+                  ? 'bg-surface-overlay text-info shadow-sm border border-edge-strong'
+                  : 'text-content-muted hover:text-content-secondary'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${activeTab === 'hospitals' ? 'bg-sky-400' : 'bg-slate-600'}`} />
+              <span className={`w-2 h-2 rounded-full ${activeTab === 'hospitals' ? 'bg-info' : 'bg-content-muted'}`} />
               <span>Hospitales</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-500/10 text-sky-300 font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-info/10 text-info font-mono tnum">
                 {data?.facilities.filter((f) => f.type !== 'BASE').length ?? 0}
               </span>
             </button>
@@ -274,6 +289,7 @@ export default function CommandCenterPage() {
           <div className="flex-1 overflow-hidden">
             {activeTab === 'incidents' && (
               <ActiveIncidentsList
+                key="incidents"
                 incidents={data?.incidents ?? []}
                 selectedId={selectedEntity?.type === 'incident' ? selectedEntity.id : null}
                 onSelect={(id) => setSelectedEntity({ type: 'incident', id })}
@@ -282,6 +298,7 @@ export default function CommandCenterPage() {
 
             {activeTab === 'fleet' && (
               <FleetStatusList
+                key="fleet"
                 vehicles={data?.vehicles ?? []}
                 selectedId={selectedEntity?.type === 'vehicle' ? selectedEntity.id : null}
                 onSelect={(id) => setSelectedEntity({ type: 'vehicle', id })}
@@ -290,6 +307,7 @@ export default function CommandCenterPage() {
 
             {activeTab === 'hospitals' && (
               <HospitalStatusList
+                key="hospitals"
                 facilities={data?.facilities ?? []}
                 selectedId={selectedEntity?.type === 'facility' ? selectedEntity.id : null}
                 onSelect={(id) => setSelectedEntity({ type: 'facility', id })}

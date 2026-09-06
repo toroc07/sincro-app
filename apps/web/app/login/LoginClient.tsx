@@ -4,11 +4,56 @@ import type { CitizenLoginResponse, CitizenRegisterResponse, StaffLoginResponse 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AlertIcon, CheckIcon } from '@/src/components/ui/icons';
+import { AlertIcon, AmbulanceIcon, CheckIcon, BoltIcon, EyeIcon, EyeOffIcon, SosIcon, UserIcon } from '@/src/components/ui/icons';
 import { BrandLockup, Button } from '@/src/components/ui';
 
 type UserType = 'citizen' | 'staff';
 type CitizenAuthMode = 'login' | 'register';
+
+/** Alterna el tipo del campo de contraseña, para "mostrar/ocultar": sin
+ *  cambiar el estilo del input ni la arquitectura de formulario. */
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  placeholder,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  const Toggle = visible ? EyeOffIcon : EyeIcon;
+  return (
+    <Field label={label}>
+      <div className="relative mt-1">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          required={required}
+          className="w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 pr-12 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          aria-pressed={visible}
+          className="absolute inset-y-0 right-2 flex items-center px-2 text-content-muted hover:text-content transition"
+        >
+          <Toggle size={20} />
+        </button>
+      </div>
+    </Field>
+  );
+}
 
 export function LoginClient() {
   const router = useRouter();
@@ -175,7 +220,7 @@ export function LoginClient() {
   };
 
   return (
-    <main className="app-light mobile-app-shell safe-x flex flex-col justify-center py-6 min-h-screen">
+    <main className="app-light mobile-app-shell safe-x flex flex-col justify-center py-6 min-h-screen screen-enter">
       <header className="pb-4">
         <BrandLockup height={46} />
         <h1 className="mt-4 text-2xl font-bold tracking-tight text-content">
@@ -208,7 +253,8 @@ export function LoginClient() {
               : 'text-content-secondary hover:text-content'
           }`}
         >
-          👤 Ciudadano
+          <UserIcon size={15} className="inline-block" />
+          Ciudadano
         </button>
         <button
           type="button"
@@ -222,7 +268,8 @@ export function LoginClient() {
               : 'text-content-secondary hover:text-content'
           }`}
         >
-          🚑 Personal Médico
+          <AmbulanceIcon size={15} className="inline-block" />
+          Personal Médico
         </button>
       </div>
 
@@ -274,16 +321,13 @@ export function LoginClient() {
                 />
               </Field>
 
-              <Field label="Contraseña">
-                <input
-                  type="password"
-                  value={citizenPassword}
-                  onChange={(e) => setCitizenPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className="mt-1 w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
-                  placeholder="••••••••"
-                />
-              </Field>
+              <PasswordField
+                label="Contraseña"
+                value={citizenPassword}
+                onChange={setCitizenPassword}
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
 
               {error && (
                 <p role="alert" className="flex items-start gap-2 text-emergency text-sm rounded-lg bg-emergency-soft p-3">
@@ -345,16 +389,13 @@ export function LoginClient() {
                 />
               </Field>
 
-              <Field label="Contraseña (opcional para proteger tu cuenta)">
-                <input
-                  type="password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="mt-1 w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
-                  placeholder="Mínimo 4 caracteres (opcional)"
-                />
-              </Field>
+              <PasswordField
+                label="Contraseña (opcional para proteger tu cuenta)"
+                value={regPassword}
+                onChange={setRegPassword}
+                autoComplete="new-password"
+                placeholder="Mínimo 4 caracteres (opcional)"
+              />
 
               {error && (
                 <p role="alert" className="flex items-start gap-2 text-emergency text-sm rounded-lg bg-emergency-soft p-3">
@@ -391,9 +432,9 @@ export function LoginClient() {
             </p>
             <Link
               href="/"
-              className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emergency px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emergency-dark active:scale-[0.98] transition w-full"
+              className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emergency px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition w-full"
             >
-              🚨 Reportar emergencia ahora (Sin registro)
+              <SosIcon size={15} className="inline-block" /> Reportar emergencia ahora (Sin registro)
             </Link>
           </div>
         </>
@@ -415,17 +456,14 @@ export function LoginClient() {
               />
             </Field>
 
-            <Field label="Contraseña Operativa">
-              <input
-                required
-                type="password"
+            <PasswordField
+                label="Contraseña Operativa"
                 value={staffPassword}
-                onChange={(e) => setStaffPassword(e.target.value)}
+                onChange={setStaffPassword}
                 autoComplete="current-password"
-                className="mt-1 w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
                 placeholder="••••••••"
+                required
               />
-            </Field>
 
             {error && (
               <p role="alert" className="flex items-start gap-2 text-emergency text-sm rounded-lg bg-emergency-soft p-3">
@@ -445,7 +483,7 @@ export function LoginClient() {
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="mt-2 min-h-touch-lg w-full text-[16px] font-semibold bg-emergency hover:bg-emergency-dark text-white"
+              className="mt-2 min-h-touch-lg w-full text-[16px] font-semibold bg-emergency hover:bg-emergency-hover text-white"
             >
               {loading ? 'Autenticando…' : 'Acceder a Panel Operativo'}
             </Button>
@@ -454,7 +492,7 @@ export function LoginClient() {
           {/* Accesos Rápidos para Demostración */}
           <div className="mt-6 rounded-2xl border border-edge-strong bg-surface-raised p-4">
             <p className="text-[11px] font-bold uppercase tracking-wider text-content-secondary text-center">
-              ⚡ Accesos Rápidos para Demo del Hackathon
+              <BoltIcon size={13} className="inline-block" /> Accesos Rápidos para Demo del Hackathon
             </p>
             <div className="mt-3 flex flex-col gap-2">
               <button
@@ -467,8 +505,8 @@ export function LoginClient() {
                 className="flex items-center justify-between rounded-xl bg-surface-base px-3.5 py-2.5 text-xs font-bold text-content border border-edge-subtle hover:border-emergency hover:bg-surface-overlay transition"
               >
                 <span className="flex items-center gap-2">
-                  <span>🚑</span>
-                  <span>Tripulación Demo (Ambulancia)</span>
+                  <AmbulanceIcon size={14} />
+                  Tripulación Demo
                 </span>
                 <span className="text-[11px] font-semibold text-emergency">Acceder →</span>
               </button>
@@ -483,7 +521,7 @@ export function LoginClient() {
                 className="flex items-center justify-between rounded-xl bg-surface-base px-3.5 py-2.5 text-xs font-bold text-content border border-edge-subtle hover:border-info hover:bg-surface-overlay transition"
               >
                 <span className="flex items-center gap-2">
-                  <span>📡</span>
+                  <span className="w-3.5 h-3.5 rounded-full bg-info/20 flex items-center justify-center"><span className="w-1.5 h-1.5 rounded-full bg-info" /></span>
                   <span>Operador de Despacho (Centro Mando)</span>
                 </span>
                 <span className="text-[11px] font-semibold text-info">Acceder →</span>

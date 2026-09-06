@@ -20,6 +20,9 @@
    ========================================================================== */
 
 :root {
+  /* Tema por defecto: oscuro (el centro de mando B2G es oscuro). El sistema
+     cambia solo si el SO pide claro (prefers-color-scheme) y ninguna pantalla
+     pidió un tema explícito (`.app-light`). */
   color-scheme: dark;
 
   /* Superficies. Escala tonal, no negro puro: el negro absoluto sobre OLED
@@ -66,6 +69,13 @@
 
   --radius-sm: 10px; --radius-md: 16px; --radius-lg: 22px; --radius-full: 999px;
 
+  /* Elevación: sombras que dependen del tema, no sombra negra cruda que se ve
+     gris sobre oscuro. B2G usa estas en tarjetas y tarjetas métricas. */
+  --shadow-xs: 0 1px 2px rgba(7, 11, 20, 0.35);
+  --shadow-sm: 0 2px 8px rgba(7, 11, 20, 0.32), 0 1px 2px rgba(7, 11, 20, 0.28);
+  --shadow-md: 0 8px 24px rgba(7, 11, 20, 0.4), 0 2px 8px rgba(7, 11, 20, 0.28);
+  --shadow-lg: 0 20px 48px rgba(7, 11, 20, 0.5), 0 6px 16px rgba(7, 11, 20, 0.3);
+
   /* Movimiento: un solo vocabulario para toda la app. */
   --motion-fast:   140ms;
   --motion-base:   220ms;
@@ -78,6 +88,38 @@
   --touch-comfort: 64px;
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Tema claro automático: si el SO pide claro y nadie forzó `.app-light`,
+   este bloque activa los tokens claros sin reescribir componentes. */
+@media (prefers-color-scheme: light) {
+  :root:not(.forced-dark) {
+    color-scheme: light;
+    --surface-base:      #ffffff;
+    --surface-raised:    #f5f7fb;
+    --surface-overlay:   #e9eef6;
+    --surface-pressed:   #dfe6f0;
+    --text-primary:      #0b1526;
+    --text-secondary:    #40506a;
+    --text-muted:        #68758a;
+    --emergency:         #d90429;
+    --emergency-hover:   #ef2346;
+    --emergency-pressed: #b00424;
+    --emergency-soft:    rgba(217, 4, 41, 0.09);
+    --emergency-ring:    rgba(217, 4, 41, 0.24);
+    --ok:                #087f5b;
+    --ok-soft:           rgba(8, 127, 91, 0.10);
+    --warn:              #a65300;
+    --warn-soft:         rgba(166, 83, 0, 0.11);
+    --info:              #0969a2;
+    --info-soft:         rgba(9, 105, 162, 0.10);
+    --border-subtle:     rgba(11, 21, 38, 0.11);
+    --border-strong:     rgba(11, 21, 38, 0.22);
+    --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
+    --shadow-sm: 0 2px 8px rgba(11, 21, 38, 0.06), 0 1px 2px rgba(11, 21, 38, 0.05);
+    --shadow-md: 0 8px 24px rgba(11, 21, 38, 0.1), 0 2px 8px rgba(11, 21, 38, 0.06);
+    --shadow-lg: 0 20px 48px rgba(11, 21, 38, 0.14), 0 6px 16px rgba(11, 21, 38, 0.08);
+  }
 }
 
 /* Las dos apps moviles siguen la direccion clara creada por Jesus David.
@@ -104,8 +146,18 @@
   --info-soft: rgba(9, 105, 162, 0.10);
   --border-subtle: rgba(11, 21, 38, 0.11);
   --border-strong: rgba(11, 21, 38, 0.22);
+  --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
+  --shadow-sm: 0 2px 8px rgba(11, 21, 38, 0.06), 0 1px 2px rgba(11, 21, 38, 0.05);
+  --shadow-md: 0 8px 24px rgba(11, 21, 38, 0.1), 0 2px 8px rgba(11, 21, 38, 0.06);
+  --shadow-lg: 0 20px 48px rgba(11, 21, 38, 0.14), 0 6px 16px rgba(11, 21, 38, 0.08);
   background: var(--surface-base);
   color: var(--text-primary);
+}
+
+/* El centro de mando B2G es deliberadamente oscuro y no lleva `.app-light`.
+   Esta clase lo aísla del tema claro automático. */
+.forced-dark {
+  color-scheme: dark;
 }
 
 .mobile-app-shell {
@@ -129,7 +181,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-base);
-  box-shadow: 0 14px 36px rgba(11, 21, 38, 0.08), 0 2px 8px rgba(11, 21, 38, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .map-paper {
@@ -159,6 +211,9 @@ body {
   line-height: 1.55;
   /* Sin rebote elástico: en el seguimiento en vivo confunde con un gesto. */
   overscroll-behavior-y: none;
+  /* Cambio de tema suave: el body y los tokens cambian en ~300ms en lugar de
+     encender/flashear cuando el SO cambia modo o se abre una pantalla clara. */
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 /* Safe areas: el CTA principal vive abajo, justo donde está la barra de
@@ -179,9 +234,32 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* Tipografía de controles heredada: los navegadores ponen su propia fuente en
+   button/input/select/textarea. En una app de emergencias eso rompe la marca
+   y en algunos SO renderiza distinto (el "texto raro" de cada botón). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
 /* Cifras tabulares en contadores y ETA: sin esto el ancho baila a cada
    segundo y el layout tiembla. */
 .tnum { font-variant-numeric: tabular-nums; }
+
+/* Titulares sin viudas: evita que un "y" o un "de" queden solos en la última
+   línea de un título, cosa que ocurre fácil en los títulos largos del B2G. */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Selección de marca: el resaltado del texto usa los tokens, no el azul del SO. */
+::selection {
+  background: var(--emergency-soft);
+  color: var(--text-primary);
+}
 
 /* Realimentación de pulsación sin mover el layout de alrededor. */
 .pressable { transition: transform var(--motion-fast) var(--motion-exit),
@@ -210,7 +288,7 @@ body {
 
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 0 var(--emergency-ring), 0 18px 44px rgba(217, 4, 41, .20); }
-  50% { box-shadow: 0 0 0 16px rgba(217, 4, 41, 0), 0 18px 44px rgba(217, 4, 41, .26); }
+  50%      { box-shadow: 0 0 0 16px rgba(217, 4, 41, 0), 0 18px 44px rgba(217, 4, 41, .26); }
 }
 .animate-breathe { animation: breathe 2.4s var(--motion-enter) infinite; }
 
@@ -223,6 +301,79 @@ body {
 }
 .modal-scrim-in { animation: scrim-in var(--motion-base) var(--motion-enter) both; }
 .modal-panel-in { animation: panel-in var(--motion-base) var(--motion-enter) both; }
+
+/* Entrada de pantalla: cada app móvil y el centro de mando entran con una
+   subida suave. Se pone sobre el contenedor raíz, una sola vez por pantalla. */
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.screen-enter { animation: screen-in 420ms var(--motion-enter) both; }
+
+/* Skeleton de carga: un bloque con shimmer que sustituye al texto
+   "Cargando…" (que baila la altura) mientras llegan datos. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+.skeleton-static { background: var(--surface-overlay); }
+
+/* Scrollbar compacta del centro de mando (se usa y antes no estaba definida):
+   timón fino, discreto, con los tokens, en lugar del scrollbar gordo del SO. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Aparecer una notificación/alerta flotante con deslizamiento suave. */
+@keyframes slide-in-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in-down { animation: slide-in-down var(--motion-base) var(--motion-enter) both; }
+
+/* Entrada escalonada para listas (filas de incidentes, flota, historial):
+   se aplica con un delay inline según el índice. */
+@keyframes list-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.list-in { animation: list-in 320ms var(--motion-enter) both; }
+
+/* Contador de métricas: la cifra cambia con una transición de opacidad +
+   leve escala para no parpadear. */
+.metric-value { transition: opacity 220ms var(--motion-enter), transform 220ms var(--motion-enter); }
 
 /* Respeta la preferencia del sistema. Personas con trastornos vestibulares o
    migraña pueden marearse con movimiento; y aquí ya están bajo estrés. */
@@ -244,4 +395,10 @@ body {
     --border-subtle:  rgba(174, 187, 212, 0.34);
     --border-strong:  rgba(174, 187, 212, 0.55);
   }
+}
+
+/* Conseguir espacio vertical en móviles sin scroll: el webkit de iOS
+   encoge estas dos sentencias; se mantienen por compatibilidad. */
+@supports (padding: max(0px)) {
+  .safe-top, .safe-bottom { padding-top: max(var(--space-5), env(safe-area-inset-top)); }
 }

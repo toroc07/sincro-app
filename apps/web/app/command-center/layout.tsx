@@ -12,7 +12,7 @@ export default function CommandCenterLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[#070b14] text-[#f5f8ff] flex flex-col font-sans selection:bg-sky-500/30">
+    <div className="forced-dark min-h-screen bg-surface-base text-content flex flex-col font-sans">
       <CommandCenterNav />
       <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
     </div>
