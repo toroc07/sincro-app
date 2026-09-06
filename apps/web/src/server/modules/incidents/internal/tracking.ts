@@ -15,7 +15,7 @@ import {
   type TrackingResponse,
   type TrackingStep,
 } from '@dispatch/contracts';
-import { db } from '@/src/server/infra/db';
+import { db, type Queryable } from '@/src/server/infra/db';
 import { fetchGraphRoute } from '@/src/server/infra/routing';
 
 /** El seguimiento se refresca cada pocos segundos: si el servicio de rutas
@@ -86,9 +86,10 @@ const STEP_LABEL: Record<TrackingStep, string> = {
   COMPLETED: 'Atención completada',
 };
 
-export async function getTracking(trackingToken: string): Promise<TrackingResponse | null> {
-  const q = db();
-
+export async function getTracking(
+  trackingToken: string,
+  q: Queryable = db(),
+): Promise<TrackingResponse | null> {
   const incident = await q.one<IncidentRow & Record<string, unknown>>(
     `SELECT id, code, status, lat, lng, created_at
        FROM incidents WHERE tracking_token = ?`,
@@ -162,7 +163,20 @@ export async function getTracking(trackingToken: string): Promise<TrackingRespon
     }
   }
 
-  const copy = COPY[step];
+  // CANCELLED no tiene paso propio en TRACKING_STEP (son 6, congelados en
+  // contracts): toTrackingStep() lo cae al default 'COMPLETED' para que la
+  // barra de progreso no se rompa. Pero el copy de COMPLETED ("Gracias por
+  // reportar, tu aviso ayudó a que llegara ayuda") es FALSO si nunca llegó
+  // nadie — decirle eso al ciudadano es peor que no decir nada. Se sobrescribe
+  // aquí, no en COPY, porque es el único paso donde el texto depende del
+  // status crudo y no solo del TrackingStep.
+  const cancelled = incident.status === 'CANCELLED';
+  const copy = cancelled
+    ? {
+        headline: 'Este reporte se cerró',
+        detail: 'El centro de despacho cerró este caso sin enviar unidad. Si la emergencia sigue activa, llama al 123.',
+      }
+    : COPY[step];
 
   return {
     incidentCode: incident.code,
