@@ -75,7 +75,7 @@ export async function loginCitizen(identifier: string, password?: string): Promi
     [clean, clean],
   );
   if (!citizen) {
-    throw new HttpError(404, 'NOT_FOUND', 'No encontramos una cuenta con ese correo o teléfono. Regístrate para continuar.');
+    throw new HttpError(401, 'UNAUTHORIZED', 'Correo/teléfono o contraseña incorrectos.');
   }
 
   // Si la cuenta tiene contraseña protegida:
@@ -85,7 +85,7 @@ export async function loginCitizen(identifier: string, password?: string): Promi
     }
     const ok = verifyPassword(password, citizen.password_hash);
     if (!ok) {
-      throw new HttpError(403, 'FORBIDDEN', 'Contraseña incorrecta. Por favor verifica tus credenciales.');
+      throw new HttpError(401, 'UNAUTHORIZED', 'Correo/teléfono o contraseña incorrectos.');
     }
   } else if (password && password.length >= 4) {
     // Si no tenía contraseña asignada, se la vinculamos ahora

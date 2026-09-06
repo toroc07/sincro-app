@@ -48,7 +48,7 @@ export async function loginStaff(identifier: string, password?: string, q: Query
   );
 
   if (!user) {
-    throw new HttpError(404, 'NOT_FOUND', 'Personal no encontrado. Verifica tu identificador o credenciales.');
+    throw new HttpError(401, 'UNAUTHORIZED', 'Usuario o contraseña incorrectos.');
   }
 
   if (!user.password_hash) {
@@ -62,7 +62,7 @@ export async function loginStaff(identifier: string, password?: string, q: Query
 
   const matches = verifyPassword(password, user.password_hash);
   if (!matches) {
-    throw new HttpError(403, 'FORBIDDEN', 'Contraseña incorrecta. Por favor verifica tus datos.');
+    throw new HttpError(401, 'UNAUTHORIZED', 'Usuario o contraseña incorrectos.');
   }
 
   return toStaffSession(user);
