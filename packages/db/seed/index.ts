@@ -1,3 +1,4 @@
+import { scryptSync } from 'node:crypto';
 import { MOCK_FACILITIES, MOCK_ZONES } from '@dispatch/contracts';
 import { tx, type Queryable } from '../src/client.js';
 import { runMigrations } from '../src/migrations.js';
@@ -25,17 +26,19 @@ export async function seedDatabase(): Promise<void> {
       [now],
     );
 
-    const users: Array<[string, string, string]> = [
-      ['user-dispatcher', 'DISPATCHER', 'Operador Demo'],
-      ['user-responder', 'RESPONDER', 'Tripulación Demo'],
-      ['user-admin', 'ADMIN', 'Administrador Demo'],
+    const hashPass = (pass: string, salt: string) => `${salt}:${scryptSync(pass, salt, 64).toString('hex')}`;
+    const users: Array<[string, string, string, string, string, string]> = [
+      ['user-dispatcher', 'DISPATCHER', 'Operador Demo', 'dispatcher@sincro.co', '3007654321', hashPass('dispatcher123', 'sincro_disp')],
+      ['user-responder', 'RESPONDER', 'Tripulación Demo', 'responder@sincro.co', '3001234567', hashPass('responder123', 'sincro_resp')],
+      ['user-admin', 'ADMIN', 'Administrador Demo', 'admin@sincro.co', '3009999999', hashPass('admin123', 'sincro_adm')],
     ];
-    for (const [id, role, name] of users) {
+    for (const [id, role, name, email, phone, passHash] of users) {
       await t.run(
-        `INSERT INTO users (id, org_id, role, name, phone, created_at)
-         VALUES (?, 'org-ems', ?, ?, NULL, ?)
-         ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, name = EXCLUDED.name`,
-        [id, role, name, now],
+        `INSERT INTO users (id, org_id, role, name, email, phone, password_hash, created_at)
+         VALUES (?, 'org-ems', ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, name = EXCLUDED.name,
+           email = EXCLUDED.email, phone = EXCLUDED.phone, password_hash = EXCLUDED.password_hash`,
+        [id, role, name, email, phone, passHash, now],
       );
     }
 
@@ -70,6 +73,9 @@ export async function seedDatabase(): Promise<void> {
       (_, i) => `seed-vehicle-${String(i + 1).padStart(2, '0')}`,
     );
     const list = seededIds.map(() => '?').join(',');
+    await t.run(`DELETE FROM dispatch_candidates WHERE vehicle_id IN (${list})`, seededIds);
+    await t.run(`DELETE FROM assignments WHERE vehicle_id IN (${list})`, seededIds);
+    await t.run(`UPDATE dispatch_runs SET recommended_vehicle_id = NULL WHERE recommended_vehicle_id IN (${list})`, seededIds);
     await t.run(`DELETE FROM vehicle_current_location WHERE vehicle_id IN (${list})`, seededIds);
     await t.run(`DELETE FROM vehicle_locations WHERE vehicle_id IN (${list})`, seededIds);
     await t.run(`DELETE FROM shifts WHERE vehicle_id IN (${list})`, seededIds);
@@ -86,7 +92,9 @@ export async function seedDatabase(): Promise<void> {
       const lat = zone.centerLat + Math.sin(angle) * ring * 0.0012;
       const lng = zone.centerLng + Math.cos(angle) * ring * 0.0012;
       const level = LEVELS[index % LEVELS.length]!;
-      const shiftId = `seed-shift-${String(ordinal).padStart(2, '0')}`;
+      const isReserve = ordinal >= 29;
+      const shiftId = isReserve ? null : `seed-shift-${String(ordinal).padStart(2, '0')}`;
+      const status = isReserve ? 'OFFLINE' : 'AVAILABLE';
       const capabilities = level === 'ALS'
         ? ['OXYGEN', 'DEFIB', 'MONITOR']
         : level === 'RESCUE' ? ['EXTRICATION', 'OXYGEN'] : ['OXYGEN'];
@@ -98,15 +106,18 @@ export async function seedDatabase(): Promise<void> {
         `INSERT INTO vehicles (id, org_id, callsign, status, capability_level, capabilities,
            home_base_id, operating_zone_id, current_assignment_id, active_shift_id,
            is_simulated, updated_at)
-         VALUES (?, 'org-ems', ?, 'AVAILABLE', ?, ?, ?, ?, NULL, ?, TRUE, ?)`,
-        [id, `A${String(ordinal).padStart(2, '0')}`, level, JSON.stringify(capabilities),
+         VALUES (?, 'org-ems', ?, ?, ?, ?, ?, ?, NULL, ?, TRUE, ?)`,
+        [id, `A${String(ordinal).padStart(2, '0')}`, status, level, JSON.stringify(capabilities),
          homeBaseId, zone.id, shiftId, now],
       );
-      await t.run(
-        `INSERT INTO shifts (id, vehicle_id, crew_user_ids, started_at, ended_at)
-         VALUES (?, ?, '["user-responder"]', ?, NULL)`,
-        [shiftId, id, now - 3_600_000],
-      );
+      if (!isReserve) {
+        const crewUserIds = id === 'seed-vehicle-05' ? '["user-responder"]' : `["crew-${String(ordinal).padStart(2, '0')}"]`;
+        await t.run(
+          `INSERT INTO shifts (id, vehicle_id, crew_user_ids, started_at, ended_at)
+           VALUES (?, ?, ?, ?, NULL)`,
+          [shiftId, id, crewUserIds, now - 3_600_000],
+        );
+      }
       await t.run(
         `INSERT INTO vehicle_locations (id, vehicle_id, lat, lng, heading, speed_kmh, recorded_at)
          VALUES (?, ?, ?, ?, ?, 0, ?)`,

@@ -60,7 +60,23 @@ export async function findVehicles(status?: VehicleStatus, q: Queryable = db()):
   return rows.map((row) => mapVehicle(row));
 }
 
+/**
+ * Retorna vehículos disponibles para iniciar turno operativo (sin tripulación / turno activo asignado).
+ * Excluye unidades que ya están ocupadas con turno activo o fuera de servicio por mantenimiento.
+ */
 export async function findAvailableVehicles(q: Queryable = db()): Promise<VehicleWithLocation[]> {
+  const rows = await q.many<Row>(`${VEHICLE_SELECT}
+    WHERE v.active_shift_id IS NULL
+      AND v.status != 'OUT_OF_SERVICE'
+    ORDER BY v.callsign
+  `);
+  return rows.map((row) => mapVehicle(row));
+}
+
+/**
+ * Retorna vehículos en servicio operativo listos para recibir despacho de emergencia.
+ */
+export async function findDispatchReadyVehicles(q: Queryable = db()): Promise<VehicleWithLocation[]> {
   const rows = await q.many<Row>(`${VEHICLE_SELECT}
     WHERE v.status = 'AVAILABLE' AND v.active_shift_id IS NOT NULL
       AND NOT EXISTS (

@@ -36,12 +36,48 @@ declare global {
   var __dispatchPool: Pool | undefined;
 }
 
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+function loadEnvIfPresent(): void {
+  if (process.env.DATABASE_URL) return;
+  const candidates = [
+    resolve(process.cwd(), '.env.local'),
+    resolve(process.cwd(), '../../.env.local'),
+    resolve(process.cwd(), '../.env.local'),
+    resolve(process.cwd(), '.env'),
+    resolve(process.cwd(), '../../.env'),
+  ];
+  for (const file of candidates) {
+    if (existsSync(file)) {
+      try {
+        const content = readFileSync(file, 'utf8');
+        for (const line of content.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+          const [key, ...rest] = trimmed.split('=');
+          if (key && rest.length > 0) {
+            const trimmedKey = key.trim();
+            if (!process.env[trimmedKey]) {
+              process.env[trimmedKey] = rest.join('=').trim().replace(/^["']|["']$/g, '');
+            }
+          }
+        }
+        if (process.env.DATABASE_URL) return;
+      } catch {
+        // Ignorar fallas al leer archivo opcional
+      }
+    }
+  }
+}
+
 function createPool(): Pool {
+  loadEnvIfPresent();
   const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
+  if (!connectionString || connectionString.includes('usuario:password@host:5432')) {
     throw new Error(
-      'DATABASE_URL no esta definida. Copia .env.example a .env.local y apunta ' +
-      'a tu Postgres (local o Vercel/Neon).',
+      'DATABASE_URL no está configurada o aún tiene los valores de ejemplo. ' +
+      'Abre tu archivo .env.local y pon la URL real de tu base de datos PostgreSQL.',
     );
   }
 

@@ -31,9 +31,9 @@ import {
  *  con un estilo claro y legible; la atribución cita a ambos, como exige la
  *  licencia. Cambiable por entorno sin tocar el código. */
 const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILES_URL
-  ?? 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
-  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
+  '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 /** Cuánto debe desviarse el vehículo de la ruta vigente para recalcularla. Por
  *  debajo de esto solo se desliza el icono: pedir un A* nuevo en cada lectura

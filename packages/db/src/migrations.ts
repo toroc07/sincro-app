@@ -44,9 +44,16 @@ export async function runMigrations(): Promise<string[]> {
   for (const name of files) {
     const sql = readFileSync(new URL(`../migrations/${name}`, import.meta.url), 'utf8');
     const checksum = createHash('sha256').update(sql).digest('hex');
+    const checksumLf = createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex');
+    const checksumCrlf = createHash('sha256').update(sql.replace(/\r?\n/g, '\r\n')).digest('hex');
     const previousChecksum = applied.get(name);
 
-    if (previousChecksum && previousChecksum !== checksum) {
+    if (
+      previousChecksum &&
+      previousChecksum !== checksum &&
+      previousChecksum !== checksumLf &&
+      previousChecksum !== checksumCrlf
+    ) {
       throw new Error(
         `La migración ya aplicada ${name} cambió de contenido. ` +
         'Crea una migración nueva en vez de editar una existente.',

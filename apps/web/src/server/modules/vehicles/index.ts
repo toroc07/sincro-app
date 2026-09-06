@@ -7,6 +7,7 @@ import { endShift, startShift } from './internal/shifts';
 import {
   findActiveAssignment,
   findAvailableVehicles,
+  findDispatchReadyVehicles,
   findVehicle,
   findVehicleByCallsign,
   findVehicleByPlate,
@@ -91,5 +92,5 @@ export async function getActiveAssignmentForVehicle(
   return findActiveAssignment(vehicleId, q);
 }
 
-export { startShift, endShift, recordLocations };
+export { startShift, endShift, recordLocations, findDispatchReadyVehicles };
 export type { LocationPosition, ActiveAssignmentContext };

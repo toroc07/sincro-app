@@ -8,7 +8,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { CitizenSession } from '@dispatch/contracts';
 
 export const CITIZEN_SESSION_COOKIE = 'dispatch_citizen';
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 días: no tiene sentido volver a pedir el registro cada día
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 año: persistente estilo red social (no expira al cerrar la app)
 
 function secret(): string {
   const configured = process.env.SESSION_SECRET;
@@ -60,5 +60,12 @@ export function resolveCitizenSession(request: Request): CitizenSession | null {
 export function citizenSessionCookie(citizen: CitizenSession): string {
   const token = signCitizenSession(citizen);
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `${CITIZEN_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${MAX_AGE_SECONDS}${secure}`;
+  const expires = new Date(Date.now() + MAX_AGE_SECONDS * 1000).toUTCString();
+  return `${CITIZEN_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${MAX_AGE_SECONDS}; Expires=${expires}${secure}`;
 }
+
+export function clearCitizenSessionCookie(): string {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `${CITIZEN_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+}
+

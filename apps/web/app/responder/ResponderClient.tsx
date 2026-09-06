@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { estimateEta, type Assignment, type Incident, type VehicleWithLocation } from '@dispatch/contracts';
 import { useEffect, useRef, useState } from 'react';
 import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon } from '@/src/components/ui/icons';
@@ -36,10 +37,14 @@ interface ResponderCurrent {
   reporterContact: string | null;
   assignment: Assignment | null;
   assignedVehicle: VehicleWithLocation | null;
+  staff?: { name: string; role: string } | null;
+  activeShift?: { callsign: string; shiftId: string } | null;
+  universalVehicleId?: string;
 }
 
 const INITIAL: ResponderCurrent = {
   incident: null, reportSummary: null, reporterContact: null, assignment: null, assignedVehicle: null,
+  staff: null, activeShift: null, universalVehicleId: UNIVERSAL_VEHICLE_ID,
 };
 
 function selectCurrent(payload: unknown): ResponderCurrent {
@@ -60,8 +65,9 @@ export function ResponderClient() {
     topics: ['incident:created', 'incident:merged', 'incident:updated', 'assignment:updated', 'vehicle:location'],
     select: selectCurrent,
   });
-  const { incident, reportSummary, reporterContact, assignment, assignedVehicle } = live.data;
-  const tracking = useVehicleTracking(UNIVERSAL_VEHICLE_ID, true);
+  const { incident, reportSummary, reporterContact, assignment, assignedVehicle, staff, activeShift } = live.data;
+  const vehicleId = live.data.universalVehicleId ?? UNIVERSAL_VEHICLE_ID;
+  const tracking = useVehicleTracking(vehicleId, true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
@@ -96,15 +102,17 @@ export function ResponderClient() {
   // en cuanto haya GPS real, sus posiciones son más recientes y ganan.
   useEffect(() => {
     const send = () => {
-      void fetch(`/api/vehicles/${UNIVERSAL_VEHICLE_ID}/location`, {
+      void fetch(`/api/vehicles/${vehicleId}/location`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ positions: [{ ...FALLBACK_LOCATION, recordedAt: Date.now() }] }),
+      }).catch(() => {
+        // Ignora desconexiones o recargas temporales de red para no disparar overlay
       });
     };
     send();
     const timer = window.setInterval(send, 20_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [vehicleId]);
 
   // Sin Command Center no hay humano que dispare el despacho: la primera
   // pasada corre sola en app/api/incidents/audio/route.ts. Si esa pasada no
@@ -118,10 +126,12 @@ export function ResponderClient() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ mode: 'AUTO_ASSIGN' }),
-      }).finally(() => {
-        redispatchingRef.current = false;
-        void live.refresh();
-      });
+      })
+        .catch(() => {})
+        .finally(() => {
+          redispatchingRef.current = false;
+          void live.refresh();
+        });
     }, 2_000);
     return () => window.clearTimeout(timer);
   }, [incident, assignment, live]);
@@ -222,6 +232,8 @@ export function ResponderClient() {
         queued={tracking.queued}
         tone={incident ? (notified ? 'green' : 'red') : 'slate'}
         status={incident ? (notified ? 'En camino' : 'Reporte activo') : 'En espera'}
+        staff={staff}
+        activeShift={activeShift}
       />
 
       {!incident ? (
@@ -331,8 +343,20 @@ export function ResponderClient() {
   );
 }
 
-function ResponderHeader({ gps, queued, tone, status }: {
-  gps: GpsState; queued: number; tone: 'green' | 'red' | 'slate'; status: string;
+function ResponderHeader({
+  gps,
+  queued,
+  tone,
+  status,
+  staff,
+  activeShift,
+}: {
+  gps: GpsState;
+  queued: number;
+  tone: 'green' | 'red' | 'slate';
+  status: string;
+  staff?: { name: string; role: string } | null;
+  activeShift?: { callsign: string; shiftId: string } | null;
 }) {
   const backgrounds = { green: 'bg-[#087f5b]', red: 'bg-[#d90429]', slate: 'bg-[#1f2a3d]' };
   const danger = gps !== 'sending';
@@ -349,7 +373,17 @@ function ResponderHeader({ gps, queued, tone, status }: {
           </span>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30">{status}</span>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/responder/profile"
+              className="rounded-full bg-white/20 hover:bg-white/30 px-2.5 py-1 text-xs font-bold text-white transition flex items-center gap-1 ring-1 ring-white/30"
+              title="Ir al perfil de guardia del paramédico"
+            >
+              <span>👤</span>
+              <span className="max-w-[95px] truncate">{staff ? staff.name : (activeShift ? `U-${activeShift.callsign}` : 'Mi Guardia')}</span>
+            </Link>
+            <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30">{status}</span>
+          </div>
           <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${danger ? 'bg-white text-emergency' : 'bg-white/18 text-white ring-1 ring-white/30'}`}>
             {GPS_LABELS[gps]}{queued ? ` · ${queued} en cola` : ''}
           </span>

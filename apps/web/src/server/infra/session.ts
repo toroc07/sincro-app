@@ -69,8 +69,16 @@ export function resolveSession(request: Request): Session | null {
   return verifySession(cookieValue(request, SESSION_COOKIE));
 }
 
-export function sessionCookie(role: SessionRole, userId: string, maxAgeSeconds = 86_400): string {
+export const STAFF_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 1 año: persistente estilo red social
+
+export function sessionCookie(role: SessionRole, userId: string, maxAgeSeconds = STAFF_SESSION_MAX_AGE_SECONDS): string {
   const token = signSession({ role, userId, expiresAt: Date.now() + maxAgeSeconds * 1000 });
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
+  const expires = new Date(Date.now() + maxAgeSeconds * 1000).toUTCString();
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}; Expires=${expires}${secure}`;
+}
+
+export function clearSessionCookie(): string {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=${new Date(0).toUTCString()}${secure}`;
 }

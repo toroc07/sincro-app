@@ -1,11 +1,12 @@
 'use client';
 
-import type { ApiError, AudioReportResponse, IncidentType } from '@dispatch/contracts';
+import type { ApiError, AudioReportResponse, CitizenSession, IncidentType } from '@dispatch/contracts';
 import { useCallback, useEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   AlertIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon, LocationIcon,
-  LungsIcon, MicIcon, RetryIcon, SendIcon, SosIcon, StopIcon, UnconsciousIcon,
+  LungsIcon, MicIcon, PhoneIcon, RetryIcon, SendIcon, SosIcon, StopIcon, UnconsciousIcon,
 } from '@/src/components/ui/icons';
 import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -34,7 +35,7 @@ function audioId(base64: string): string {
   return (hash >>> 0).toString(36);
 }
 
-export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
+export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
   const router = useRouter();
   const recorder = useAudioRecorder();
   const [stage, setStage] = useState<Stage>('locating');
@@ -42,7 +43,27 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
   const [locationPicker, setLocationPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackType, setFallbackType] = useState<IncidentType | null>(null);
+  const [contactPhone, setContactPhone] = useState<string>(citizen?.phone ?? '');
   const mountedRef = useRef(true);
+
+  // Carga teléfono de sesión o persistido en el dispositivo para reportes anónimos
+  useEffect(() => {
+    if (citizen?.phone) {
+      setContactPhone(citizen.phone);
+    } else {
+      try {
+        const saved = localStorage.getItem('sincro_contact_phone');
+        if (saved) setContactPhone(saved);
+      } catch {}
+    }
+  }, [citizen?.phone]);
+
+  const updatePhone = (val: string) => {
+    setContactPhone(val);
+    try {
+      localStorage.setItem('sincro_contact_phone', val);
+    } catch {}
+  };
 
   // Los servicios en capa gratuita despiertan mientras la persona busca la
   // ubicación y pulsa grabar, no cuando ya está hablando al micrófono.
@@ -96,6 +117,13 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
       return;
     }
 
+    const cleanPhone = contactPhone.trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    if (!cleanPhone || phoneDigits.length < 7) {
+      setError('Por favor ingresa tu número de celular para que la tripulación de la ambulancia pueda comunicarse contigo.');
+      return;
+    }
+
     setStage('sending');
     setError(null);
     const controller = new AbortController();
@@ -115,9 +143,8 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
           point: { lat: position.lat, lng: position.lng },
           accuracyM: position.accuracyM,
           fallbackType: fallbackType ?? undefined,
-          // Ya lo dejaste al registrarte — no se te vuelve a pedir. Es lo que
-          // permite al responder llamarte si el audio no dio suficiente info.
-          reporterContact: citizenPhone,
+          // Teléfono de contacto directo para la ambulancia
+          reporterContact: cleanPhone,
         }),
       });
       if (!response.ok) {
@@ -135,7 +162,7 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
     } finally {
       window.clearTimeout(timer);
     }
-  }, [fallbackType, position, recorder.recording, router]);
+  }, [contactPhone, fallbackType, position, recorder.recording, router]);
 
   const isRecording = recorder.state === 'recording';
   const canRecord = recorder.state !== 'unsupported' && recorder.state !== 'denied';
@@ -143,13 +170,33 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
 
   return (
     <main className="app-light mobile-app-shell safe-x flex flex-col">
-      <header className="safe-top flex items-center gap-3 pb-4 animate-fade-up">
-        {/* El isotipo sustituye al cuadro rojo genérico: dice lo mismo (cruz
-            médica) y además identifica el sistema. El titular sigue mandando. */}
-        <BrandMark size={48} />
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[.18em] text-emergency">SINCRO · Emergencia</p>
-          <h1 className="text-[22px] font-bold leading-tight tracking-tight min-[360px]:text-[24px]">Describe qué está pasando</h1>
+      <header className="safe-top flex items-center justify-between gap-3 pb-4 animate-fade-up">
+        <div className="flex items-center gap-3 min-w-0">
+          <BrandMark size={44} />
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-emergency">SINCRO · Emergencia</p>
+            <h1 className="text-[19px] font-bold leading-tight tracking-tight min-[360px]:text-[21px]">Describe qué ocurre</h1>
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          {citizen ? (
+            <Link
+              href="/profile"
+              className="flex items-center gap-1.5 rounded-full border border-edge-strong bg-surface-base px-2.5 py-1 text-xs font-semibold text-content hover:bg-surface-raised transition shadow-sm"
+              title="Ver mi perfil y reportes"
+            >
+              <span className="text-sm">👤</span>
+              <span className="max-w-[75px] truncate">{citizen.name.split(' ')[0]}</span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-1 rounded-full border border-edge-strong bg-surface-base px-3 py-1.5 text-xs font-semibold text-content-secondary hover:text-content hover:bg-surface-raised transition shadow-sm"
+            >
+              Acceder
+            </Link>
+          )}
         </div>
       </header>
 
@@ -159,6 +206,37 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
         openPicker={() => setLocationPicker(true)}
         retry={locate}
       />
+
+      {/* Entrada de Celular de Contacto en la Pantalla Principal */}
+      <div className="mt-2.5 flex items-center justify-between gap-2.5 rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 shadow-sm">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <PhoneIcon size={18} className={contactPhone.replace(/\D/g, '').length >= 7 ? "text-ok shrink-0" : "text-emergency shrink-0"} />
+          <div className="min-w-0 flex-1">
+            <label htmlFor="quick-phone" className="block text-[10px] font-bold uppercase tracking-wider text-content-secondary">
+              Celular para que la ambulancia te llame
+            </label>
+            <input
+              id="quick-phone"
+              type="tel"
+              inputMode="tel"
+              value={contactPhone}
+              onChange={(e) => updatePhone(e.target.value)}
+              placeholder="Ej: 300 123 4567"
+              className="w-full bg-transparent text-sm font-bold text-content placeholder:text-content-muted placeholder:font-normal focus:outline-none"
+            />
+          </div>
+        </div>
+        {contactPhone.replace(/\D/g, '').length >= 7 ? (
+          <span className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-ok bg-ok-soft px-2 py-0.5 rounded-full">
+            <CheckIcon size={13} />
+            Listo
+          </span>
+        ) : (
+          <span className="shrink-0 text-[10px] font-extrabold text-emergency bg-emergency-soft px-2 py-0.5 rounded-full">
+            Requerido
+          </span>
+        )}
+      </div>
 
       {locationPicker && (
         <ApproximateLocationPicker onPick={pickApproximateLocation} onClose={() => setLocationPicker(false)} />
@@ -181,6 +259,8 @@ export function ReportClient({ citizenPhone }: { citizenPhone: string }) {
             selected={fallbackType}
             sending={stage === 'sending'}
             locationReady={Boolean(position)}
+            contactPhone={contactPhone}
+            onPhoneChange={updatePhone}
             onSelect={setFallbackType}
             onSend={send}
             onRetry={() => { recorder.reset(); setFallbackType(null); setError(null); }}
@@ -273,10 +353,16 @@ function RecordButton({ isRecording, level, seconds, onStart, onStop }: {
   );
 }
 
-function ReviewPanel({ seconds, selected, sending, locationReady, onSelect, onSend, onRetry }: {
+function ReviewPanel({
+  seconds, selected, sending, locationReady, onSelect, onSend, onRetry,
+  contactPhone, onPhoneChange,
+}: {
   seconds: number; selected: IncidentType | null; sending: boolean; locationReady: boolean;
+  contactPhone: string; onPhoneChange: (val: string) => void;
   onSelect: (type: IncidentType) => void; onSend: () => void; onRetry: () => void;
 }) {
+  const hasValidPhone = contactPhone.replace(/\D/g, '').length >= 7;
+
   return (
     <section className="w-full animate-fade-up" aria-labelledby="confirm-type-title">
       <div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-emergency">Pregunta 1 de 1</p><h2 id="confirm-type-title" className="mt-1 text-xl font-bold">¿Qué tipo de emergencia es?</h2></div><span className="rounded-full bg-ok-soft px-3 py-1 text-xs font-semibold text-ok"><span className="tnum">{Math.round(seconds)}</span> s grabados</span></div>
@@ -286,6 +372,36 @@ function ReviewPanel({ seconds, selected, sending, locationReady, onSelect, onSe
           return <button key={type} type="button" aria-pressed={active} onClick={() => onSelect(type)} className={`pressable min-h-[78px] rounded-xl border p-3 text-left ${active ? 'border-emergency bg-emergency-soft text-emergency' : 'border-edge-subtle bg-surface-base text-content-secondary'}`}><Icon size={25} /><span className="mt-2 block text-sm font-semibold">{label}</span></button>;
         })}
       </div>
+
+      {/* Celular de contacto para que el paramédico pueda llamar */}
+      <div className={`mt-4 rounded-xl border p-3.5 transition-all ${
+        !hasValidPhone
+          ? 'border-emergency/60 bg-emergency-soft/30 ring-1 ring-emergency/30'
+          : 'border-edge-subtle bg-surface-raised'
+      }`}>
+        <label htmlFor="review-phone" className="flex items-center justify-between text-xs font-bold text-content uppercase tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <PhoneIcon size={15} className="text-emergency" />
+            <span>Celular de contacto para la ambulancia</span>
+          </span>
+          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${hasValidPhone ? 'bg-ok-soft text-ok' : 'bg-emergency-soft text-emergency'}`}>
+            {hasValidPhone ? '✓ LISTO' : 'REQUERIDO'}
+          </span>
+        </label>
+        <p className="mt-1 text-[11px] text-content-secondary">
+          La tripulación médica te llamará a este número para confirmar la llegada o si necesita indicaciones de cómo entrar.
+        </p>
+        <input
+          id="review-phone"
+          type="tel"
+          inputMode="tel"
+          value={contactPhone}
+          onChange={(e) => onPhoneChange(e.target.value)}
+          placeholder="Escribe tu número de celular (Ej: 300 123 4567)"
+          className="mt-2 w-full rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 text-sm font-bold text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
+        />
+      </div>
+
       <button type="button" disabled={sending || !locationReady} aria-busy={sending} onClick={onSend} className="pressable mt-5 flex min-h-touch-lg w-full items-center justify-center gap-2 rounded-xl bg-emergency px-4 text-lg font-bold text-white shadow-lg disabled:opacity-50"><SendIcon size={21} />{sending ? 'Enviando reporte…' : 'Enviar reporte'}</button>
       <button type="button" disabled={sending} onClick={onRetry} className="pressable mt-2 flex min-h-touch w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-content-secondary"><RetryIcon size={18} /> Grabar de nuevo</button>
     </section>
