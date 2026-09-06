@@ -308,7 +308,7 @@ export function ResponderClient() {
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${incident.lat},${incident.lng}&travelmode=driving`}
                 target="_blank" rel="noopener noreferrer"
-                className="pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl bg-info font-bold text-white"
+                className="pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl bg-info font-bold text-on-info"
               >
                 <LocationIcon size={19} /> Cómo llegar
               </a>
@@ -329,7 +329,7 @@ export function ResponderClient() {
                   <CheckIcon size={18} /> Ya avisamos que vas en camino
                 </p>
               ) : (
-                <Button className="responder-action bg-ok text-white" disabled={busy} onClick={() => void notifyEnRoute()}>
+                <Button className="responder-action bg-ok text-on-ok" disabled={busy} onClick={() => void notifyEnRoute()}>
                   {busy ? 'Enviando…' : 'Notificar: voy en camino'}
                 </Button>
               )
@@ -358,7 +358,7 @@ function ResponderHeader({
   staff?: { name: string; role: string } | null;
   activeShift?: { callsign: string; shiftId: string } | null;
 }) {
-  const backgrounds = { green: 'bg-[#087f5b]', red: 'bg-[#d90429]', slate: 'bg-[#1f2a3d]' };
+  const backgrounds = { green: 'bg-ok', red: 'bg-emergency', slate: 'bg-[#1f2a3d]' };
   const danger = gps !== 'sending';
   return (
     <header className={`responder-header ${backgrounds[tone]}`}>

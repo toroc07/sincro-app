@@ -13,6 +13,7 @@ Bienvenido a la documentación técnica de **SINCRO** (Sistema Integrado de Comu
 | [**3. Reporte Ciudadano y Enlace de Contacto**](./03_REPORTE_CIUDADANO_Y_CONTACTO.md) | Flujo de emergencia por voz inmediato sin registro, captura y validación de celular anónimo, geolocalización y enlace telefónico directo en cabina de ambulancia. |
 | [**4. Base de Datos, Migraciones y Semillas**](./04_BASE_DE_DATOS_Y_MIGRACIONES.md) | Esquema relacional en PostgreSQL (Neon), normalización de checksums en migraciones multiplataforma, scripts CLI y configuración de flota de reserva. |
 | [**5. Mejoras Visuales y Animaciones**](./MEJORAS-VISUALES.md) | Revisión visual del frontend: tema automático claro/oscuro, tokens semánticos, skeletons, animaciones escalonadas, iconos SVG y consistencia en login, centro de mando, perfiles y reporte. |
+| [**6. Arreglos Visuales V2**](./ARREGLOS-VISUALES-V2.md) | Contraste bajo tema oscuro (tokens `text-on-*`), alto contraste por tema, movimiento reducido, filas clicables accesibles, iconos sobre glifos tipográficos, credenciales B2G no precargadas y limpieza de clases muertas. |
 
 ---
 

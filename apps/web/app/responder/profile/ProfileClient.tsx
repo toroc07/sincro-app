@@ -8,7 +8,7 @@ import type {
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertIcon, AmbulanceIcon, BoltIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
+import { AlertIcon, AmbulanceIcon, ArrowLeftIcon, BoltIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
 import { Badge, BrandMark, Button } from '@/src/components/ui';
 
 export function ProfileClient({ initialProfile }: { initialProfile: StaffProfileData }) {
@@ -22,6 +22,13 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [confirmingEndShift, setConfirmingEndShift] = useState(false);
+
+  useEffect(() => {
+    if (!confirmingEndShift) return;
+    const t = setTimeout(() => setConfirmingEndShift(false), 8000);
+    return () => clearTimeout(t);
+  }, [confirmingEndShift]);
 
   // Carga historial de emergencias atendidas
   useEffect(() => {
@@ -90,7 +97,13 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
   };
 
   const handleEndShift = async () => {
-    if (!confirm('¿Estás seguro de que deseas finalizar tu turno operativo?')) return;
+    if (confirmingEndShift) {
+      return await endShift();
+    }
+    setConfirmingEndShift(true);
+  };
+
+  const endShift = async () => {
     setLoadingAction(true);
     setActionError(null);
     setActionSuccess(null);
@@ -101,9 +114,11 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
         throw new Error(err?.error?.message ?? 'No se pudo finalizar el turno');
       }
       setActionSuccess('Turno operativo finalizado con éxito.');
+      setConfirmingEndShift(false);
       await refreshProfile();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Error al finalizar turno');
+      setConfirmingEndShift(false);
     } finally {
       setLoadingAction(false);
     }
@@ -130,7 +145,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
           href="/responder"
           className="flex items-center gap-1.5 text-xs font-bold text-content-secondary hover:text-content transition py-1 px-2 rounded-lg bg-surface-raised border border-edge-subtle"
         >
-          <span>←</span>
+          <ArrowLeftIcon size={14} />
           <span>Consola Ambulancia</span>
         </Link>
         <div className="flex items-center gap-2">
@@ -200,7 +215,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
               <span className="h-2.5 w-2.5 rounded-full bg-emergency animate-ping" />
               Emergencia en Curso
             </span>
-            <Badge className="bg-emergency text-white font-mono font-bold text-xs">{activeIncident.code}</Badge>
+            <Badge className="bg-emergency text-on-emergency font-mono font-bold text-xs">{activeIncident.code}</Badge>
           </div>
           <h2 className="mt-1.5 text-lg font-bold text-content">{activeIncident.type}</h2>
           {activeIncident.address && (
@@ -211,7 +226,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
           )}
           <Link
             href="/responder"
-            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emergency py-3 text-sm font-bold text-white shadow-md hover:bg-emergency-hover active:scale-[0.98] transition w-full"
+            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-emergency py-3 text-sm font-bold text-on-emergency shadow-md hover:bg-emergency-hover active:scale-[0.98] transition w-full"
           >
             <BoltIcon size={16} /> Abrir Navegación GPS y Atender
           </Link>
@@ -249,23 +264,30 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
             <div className="mt-3 flex gap-2">
               <Link
                 href="/responder"
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-info py-2.5 text-xs font-bold text-white shadow-sm hover:bg-info transition"
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-info py-2.5 text-xs font-bold text-on-info shadow-sm hover:bg-info transition"
               >
                 <span className="flex items-center gap-1.5">
                   <AmbulanceIcon size={15} />
                   Ir a Consola GPS
                 </span>
               </Link>
-              <Button
-                type="button"
-                variant="danger"
-                disabled={loadingAction || Boolean(activeIncident)}
-                onClick={() => void handleEndShift()}
-                className="py-2.5 px-3 text-xs font-semibold"
-                title={activeIncident ? 'Finaliza la emergencia activa antes de cerrar turno' : undefined}
-              >
-                {loadingAction ? 'Cerrando…' : 'Finalizar Turno'}
-              </Button>
+<Button
+  type="button"
+  variant="danger"
+  disabled={loadingAction || Boolean(activeIncident)}
+  aria-live="polite"
+  onClick={() => void handleEndShift()}
+  className="py-2.5 px-3 text-xs font-semibold"
+  title={activeIncident ? 'Finaliza la emergencia activa antes de cerrar turno' : undefined}
+>
+  {loadingAction ? (
+    'Cerrando…'
+  ) : confirmingEndShift ? (
+    '¿Confirmar cierre? Toca de nuevo'
+  ) : (
+    'Finalizar Turno'
+  )}
+</Button>
             </div>
             {activeIncident && (
               <p className="mt-2 text-[11px] text-content-muted text-center">
@@ -307,7 +329,7 @@ export function ProfileClient({ initialProfile }: { initialProfile: StaffProfile
                 type="button"
                 disabled={loadingAction || !selectedVehicleId}
                 onClick={() => void handleStartShift()}
-                className="mt-1 bg-emergency hover:bg-emergency-hover text-white font-bold py-2.5 text-xs rounded-xl"
+                className="mt-1 bg-emergency hover:bg-emergency-hover text-on-emergency font-bold py-2.5 text-xs rounded-xl"
               >
                 {loadingAction ? 'Iniciando guardia…' : 'Iniciar Turno en esta Ambulancia'}
               </Button>

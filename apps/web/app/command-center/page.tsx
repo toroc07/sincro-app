@@ -110,7 +110,7 @@ export default function CommandCenterPage() {
           <p className="text-xs text-content-secondary mb-4">{error}</p>
           <button
             onClick={() => fetchOverview()}
-            className="px-4 py-2 rounded-lg bg-emergency hover:bg-emergency-hover text-white text-xs font-semibold transition"
+            className="px-4 py-2 rounded-lg bg-emergency hover:bg-emergency-hover text-on-emergency text-xs font-semibold transition"
           >
             Reintentar enlace
           </button>

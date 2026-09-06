@@ -1,4 +1,5 @@
 import type { Incident } from '@dispatch/contracts';
+import { ArrowRightIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
 
 interface ActiveIncidentsListProps {
   incidents: Incident[];
@@ -63,10 +64,12 @@ export function ActiveIncidentsList({
           const minsAgo = Math.floor((Date.now() - inc.createdAt) / 60000);
 
           return (
-            <div
+            <button
               key={inc.id}
+              type="button"
               onClick={() => onSelect(inc.id)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer list-in ${
+              aria-pressed={isSelected}
+              className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer list-in ${
                 isSelected
                   ? 'bg-emergency/10 border-emergency/50 shadow-md shadow-emergency/10'
                   : 'bg-surface-raised/60 border-edge-strong hover:border-emergency/30 hover:bg-surface-raised'
@@ -74,16 +77,16 @@ export function ActiveIncidentsList({
               style={{ animationDelay: `${Math.min(i * 35, 300)}ms` }}
             >
               <div className="flex items-start justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <span
-                    className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${getPriorityBadge(
+                    className={`text-[10px] font-black px-1.5 py-0.5 rounded border shrink-0 ${getPriorityBadge(
                       inc.priority,
                     )}`}
                   >
                     {inc.priority || 'P2'}
                   </span>
-                  <div>
-                    <h4 className="text-xs font-bold text-content leading-tight">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-content leading-tight truncate">
                       {inc.type}
                     </h4>
                     <span className="text-[10px] font-mono text-content-muted tnum">
@@ -102,11 +105,8 @@ export function ActiveIncidentsList({
               </div>
 
               {inc.address && (
-                <div className="text-[11px] text-content-secondary flex items-center gap-1.5 mt-1">
-                  <svg className="w-3.5 h-3.5 shrink-0 text-content-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
+                <div className="text-[11px] text-content-secondary flex items-center gap-1.5 mt-1 min-w-0">
+                  <LocationIcon size={14} className="shrink-0 text-content-muted" />
                   <span className="truncate">{inc.address}</span>
                 </div>
               )}
@@ -114,17 +114,17 @@ export function ActiveIncidentsList({
               <div className="mt-2.5 pt-2 border-t border-edge-subtle flex items-center justify-between text-[10px] text-content-muted">
                 <span>Hace {minsAgo > 0 ? `${minsAgo} min` : 'un momento'}</span>
                 <span className="text-emergency font-medium hover:underline flex items-center gap-1">
-                  Enfocar en mapa &rarr;
+                  Enfocar en mapa <ArrowRightIcon size={11} />
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
 
         {incidents.length === 0 && (
           <div className="text-center py-10 text-xs text-content-muted list-in">
             <div className="w-8 h-8 rounded-full bg-ok/10 text-ok mx-auto flex items-center justify-center mb-2">
-              ✓
+              <CheckIcon size={16} />
             </div>
             Sin emergencias críticas pendientes en este momento.
           </div>

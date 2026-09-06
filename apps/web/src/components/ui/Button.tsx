@@ -9,9 +9,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /** Tokens semánticos, no colores crudos: si el tema cambia, esto cambia con él
  *  sin tocar cada componente que lo usa. */
 const variants: Record<Variant, string> = {
-  primary: 'bg-emergency text-white hover:bg-emergency-hover active:bg-emergency-pressed',
+  primary: 'bg-emergency text-on-emergency hover:bg-emergency-hover active:bg-emergency-pressed',
   secondary: 'ring-1 ring-edge-strong bg-surface-raised text-content hover:ring-content-muted',
-  danger: 'bg-emergency text-white hover:bg-emergency-hover active:bg-emergency-pressed',
+  danger: 'bg-transparent ring-1 ring-inset ring-emergency text-emergency hover:bg-emergency-soft',
   ghost: 'bg-transparent text-content-secondary hover:bg-surface-raised',
 };
 
@@ -28,7 +28,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         // aquí la persona puede estar en movimiento.
         'pressable inline-flex min-h-touch items-center justify-center rounded-sm px-4',
         'text-[15px] font-semibold transition',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:ring-emergency-ring',
         'disabled:pointer-events-none disabled:opacity-50',
         variants[variant],
         className,

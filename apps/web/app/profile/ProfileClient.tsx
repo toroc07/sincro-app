@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BrandLockup, Button } from '@/src/components/ui';
-import { LocationIcon, PhoneIcon, SosIcon } from '@/src/components/ui/icons';
+import { ArrowLeftIcon, ArrowRightIcon, LocationIcon, PhoneIcon, SosIcon } from '@/src/components/ui/icons';
 
 interface ReportHistory {
   id: string;
@@ -95,14 +95,14 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
           href="/"
           className="rounded-xl border border-edge-strong bg-surface-base px-3 py-1.5 text-xs font-semibold text-content hover:bg-surface-raised transition"
         >
-          ← Volver
+          <ArrowLeftIcon size={14} /> Volver
         </Link>
       </header>
 
       {/* Tarjeta de Perfil */}
       <section className="mt-5 rounded-2xl border border-edge-strong bg-surface-base p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emergency to-[#8a0f1e] text-white font-bold text-lg shadow-sm">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emergency to-emergency-ink text-on-emergency font-bold text-lg shadow-sm">
             {initials || 'CI'}
           </div>
           <div className="min-w-0 flex-1">
@@ -123,7 +123,7 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
         <div className="mt-4 flex items-center gap-2">
           <Link
             href="/"
-            className="flex-1 rounded-xl bg-emergency px-4 py-2.5 text-center text-xs font-bold text-white shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition"
+            className="flex-1 rounded-xl bg-emergency px-4 py-2.5 text-center text-xs font-bold text-on-emergency shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition"
           >
             <span className="inline-flex items-center justify-center gap-1.5">
             <SosIcon size={15} />
@@ -220,7 +220,7 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
                         href={`/track/${report.trackingToken}`}
                         className="font-bold text-emergency hover:underline"
                       >
-                        Ver seguimiento →
+                        Ver seguimiento <ArrowRightIcon size={12} />
                       </Link>
                     )}
                   </div>

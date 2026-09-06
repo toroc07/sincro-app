@@ -24,7 +24,19 @@ export default async function LoginPage() {
   }
 
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-content-secondary">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <div className="app-light min-h-screen bg-surface-base flex flex-col justify-center items-center px-4" role="status">
+          <div className="w-full max-w-md space-y-4">
+            <div className="h-10 w-10 mx-auto rounded-full bg-surface-overlay skeleton" />
+            <div className="h-6 w-48 mx-auto rounded-md bg-surface-overlay skeleton" style={{ animationDelay: '80ms' }} />
+            <div className="h-4 w-64 mx-auto rounded-md bg-surface-overlay skeleton" style={{ animationDelay: '160ms' }} />
+            <div className="h-44 w-full rounded-2xl bg-surface-overlay skeleton" style={{ animationDelay: '240ms' }} />
+          </div>
+          <span className="sr-only">Cargando la aplicación</span>
+        </div>
+      }
+    >
       <LoginClient />
     </Suspense>
   );

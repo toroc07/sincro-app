@@ -73,7 +73,7 @@ export function MetricCard({
 
   return (
     <div
-      className={`bg-surface-raised/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-200 hover:shadow-lg hover:shadow-black/30 flex flex-col justify-between animate-fade-up ${
+      className={`bg-surface-raised/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-200 hover:shadow-lg flex flex-col justify-between animate-fade-up ${
         variant === 'emerald'
           ? 'border-ok/20 hover:border-ok/40'
           : variant === 'rose'

@@ -34,6 +34,11 @@ const config: Config = {
         ok:   { DEFAULT: 'var(--ok)',   soft: 'var(--ok-soft)' },
         warn: { DEFAULT: 'var(--warn)', soft: 'var(--warn-soft)' },
         info: { DEFAULT: 'var(--info)', soft: 'var(--info-soft)' },
+        /* Tinta sobre fondos de marca — cambia con el tema para pasar AA. */
+        'on-emergency': 'var(--on-emergency)',
+        'on-info':      'var(--on-info)',
+        'on-ok':        'var(--on-ok)',
+        'on-warn':      'var(--on-warn)',
         edge: {
           subtle: 'var(--border-subtle)',
           strong: 'var(--border-strong)',
@@ -51,6 +56,16 @@ const config: Config = {
       transitionTimingFunction: {
         enter: 'var(--motion-enter)',
         exit:  'var(--motion-exit)',
+      },
+      boxShadow: {
+        xs: 'var(--shadow-xs)',
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+      },
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       },
     },
   },

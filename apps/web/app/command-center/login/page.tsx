@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { EyeIcon, EyeOffIcon } from '@/src/components/ui/icons';
+import { AlertIcon, ArrowRightIcon, EyeIcon, EyeOffIcon, SpinnerIcon } from '@/src/components/ui/icons';
 
 export default function CommandCenterLoginPage() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState('admin@sincro.co');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,13 +73,11 @@ export default function CommandCenterLoginPage() {
         </div>
 
         {/* Card de acceso */}
-        <div className="bg-surface-raised/90 backdrop-blur-md border border-surface-overlay rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/50">
+        <div className="bg-surface-raised/90 backdrop-blur-md border border-surface-overlay rounded-2xl p-6 sm:p-8 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div role="alert" className="p-3.5 rounded-xl bg-emergency-soft border border-emergency/40 text-emergency text-xs flex items-start gap-2.5 animate-slide-in-down">
-                <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <AlertIcon size={16} className="shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
@@ -108,7 +106,8 @@ export default function CommandCenterLoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Contraseña"
+                  aria-label="Contraseña"
                   className="w-full px-4 py-3 pr-12 rounded-xl bg-surface-overlay/70 border border-edge-subtle text-content placeholder:text-content-muted text-sm focus:outline-none focus:border-info transition-colors"
                 />
                 <button
@@ -126,22 +125,18 @@ export default function CommandCenterLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-gradient-to-r from-info to-[#2563eb] hover:brightness-110 text-white shadow-lg shadow-black/30 transition-all transform active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+              aria-busy={loading}
+              className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm bg-gradient-to-r from-info to-info/80 hover:brightness-110 text-on-info shadow-md transition-all transform active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
+                  <SpinnerIcon size={16} className="animate-spin text-on-info" />
                   <span>Validando credenciales...</span>
                 </>
               ) : (
                 <>
                   <span>Ingresar a la Consola de Mando</span>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
+                  <ArrowRightIcon size={16} />
                 </>
               )}
             </button>

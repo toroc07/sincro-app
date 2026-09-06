@@ -1,4 +1,5 @@
 import type { Facility } from '@dispatch/contracts';
+import { ArrowRightIcon, HospitalIcon } from '@/src/components/ui/icons';
 
 interface HospitalStatusListProps {
   facilities: Facility[];
@@ -38,10 +39,12 @@ export function HospitalStatusList({
           const isTrauma = hosp.type === 'TRAUMA_CENTER';
 
           return (
-            <div
+            <button
               key={hosp.id}
+              type="button"
               onClick={() => onSelect(hosp.id)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer list-in ${
+              aria-pressed={isSelected}
+              className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer list-in ${
                 isSelected
                   ? 'bg-info/10 border-info/50 shadow-md shadow-info/10'
                   : 'bg-surface-raised/60 border-edge-strong hover:border-info/30 hover:bg-surface-raised'
@@ -49,18 +52,12 @@ export function HospitalStatusList({
               style={{ animationDelay: `${Math.min(i * 35, 300)}ms` }}
             >
               <div className="flex items-start justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
-                      isTrauma ? 'bg-info/20 text-info' : 'bg-info/20 text-info'
-                    }`}
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m-8-8h16" />
-                    </svg>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 bg-info/20 text-info">
+                    <HospitalIcon size={14} />
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-content leading-tight">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-content leading-tight truncate">
                       {hosp.name}
                     </h4>
                     <span className="text-[10px] text-content-secondary">
@@ -89,10 +86,10 @@ export function HospitalStatusList({
               <div className="mt-2.5 pt-2 border-t border-edge-subtle flex items-center justify-between text-[10px] text-content-muted">
                 <span>Ubicación: Bahía / Cartagena</span>
                 <span className="text-info font-medium hover:underline flex items-center gap-1">
-                  Ubicar en mapa &rarr;
+                  Ubicar en mapa <ArrowRightIcon size={11} />
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
 

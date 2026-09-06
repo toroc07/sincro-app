@@ -53,7 +53,7 @@ export function CommandCenterNav() {
       {/* Izquierda: Logotipo y Entidad */}
       <div className="flex items-center gap-3">
         <Link href="/command-center" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-info to-[#2563eb] flex items-center justify-center font-black text-white text-base tracking-tighter shadow-md">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-info to-[#2563eb] flex items-center justify-center font-black text-on-info text-base tracking-tighter shadow-md">
             S
           </div>
           <div>

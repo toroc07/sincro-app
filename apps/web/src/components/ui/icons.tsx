@@ -189,3 +189,49 @@ export const BoltIcon = (p: IconProps) => (
     <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
   </Icon>
 );
+
+export const CloseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Icon>
+);
+
+export const ArrowRightIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Icon>
+);
+
+export const ArrowLeftIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M19 12H5M11 6l-6 6 6 6" />
+  </Icon>
+);
+
+export const LogoutIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+    <path d="M10 17l5-5-5-5M15 12H3" />
+  </Icon>
+);
+
+export const ClockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+
+export const HospitalIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+    <path d="M10 21v-4h4v4" />
+    <path d="M10 8h4M12 6v4" />
+  </Icon>
+);
+
+export const SpinnerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3a9 9 0 1 0 9 9" strokeWidth={2.4} />
+  </Icon>
+);

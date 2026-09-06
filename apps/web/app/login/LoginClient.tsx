@@ -4,7 +4,7 @@ import type { CitizenLoginResponse, CitizenRegisterResponse, StaffLoginResponse 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AlertIcon, AmbulanceIcon, CheckIcon, BoltIcon, EyeIcon, EyeOffIcon, SosIcon, UserIcon } from '@/src/components/ui/icons';
+import { AlertIcon, AmbulanceIcon, ArrowRightIcon, CheckIcon, BoltIcon, EyeIcon, EyeOffIcon, SosIcon, UserIcon } from '@/src/components/ui/icons';
 import { BrandLockup, Button } from '@/src/components/ui';
 
 type UserType = 'citizen' | 'staff';
@@ -264,7 +264,7 @@ export function LoginClient() {
           }}
           className={`py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
             userType === 'staff'
-              ? 'bg-emergency text-white shadow-sm font-extrabold'
+              ? 'bg-emergency text-on-emergency shadow-sm font-extrabold'
               : 'text-content-secondary hover:text-content'
           }`}
         >
@@ -326,7 +326,7 @@ export function LoginClient() {
                 value={citizenPassword}
                 onChange={setCitizenPassword}
                 autoComplete="current-password"
-                placeholder="••••••••"
+                placeholder="Contraseña"
               />
 
               {error && (
@@ -432,7 +432,7 @@ export function LoginClient() {
             </p>
             <Link
               href="/"
-              className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emergency px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition w-full"
+              className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emergency px-4 py-2.5 text-sm font-bold text-on-emergency shadow-sm hover:bg-emergency-hover active:scale-[0.98] transition w-full"
             >
               <SosIcon size={15} className="inline-block" /> Reportar emergencia ahora (Sin registro)
             </Link>
@@ -461,7 +461,7 @@ export function LoginClient() {
                 value={staffPassword}
                 onChange={setStaffPassword}
                 autoComplete="current-password"
-                placeholder="••••••••"
+                placeholder="Contraseña"
                 required
               />
 
@@ -483,7 +483,7 @@ export function LoginClient() {
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="mt-2 min-h-touch-lg w-full text-[16px] font-semibold bg-emergency hover:bg-emergency-hover text-white"
+              className="mt-2 min-h-touch-lg w-full text-[16px] font-semibold bg-emergency hover:bg-emergency-hover text-on-emergency"
             >
               {loading ? 'Autenticando…' : 'Acceder a Panel Operativo'}
             </Button>
@@ -508,7 +508,7 @@ export function LoginClient() {
                   <AmbulanceIcon size={14} />
                   Tripulación Demo
                 </span>
-                <span className="text-[11px] font-semibold text-emergency">Acceder →</span>
+                <span className="text-[11px] font-semibold text-emergency flex items-center gap-1">Acceder <ArrowRightIcon size={12} /></span>
               </button>
 
               <button
@@ -524,7 +524,7 @@ export function LoginClient() {
                   <span className="w-3.5 h-3.5 rounded-full bg-info/20 flex items-center justify-center"><span className="w-1.5 h-1.5 rounded-full bg-info" /></span>
                   <span>Operador de Despacho (Centro Mando)</span>
                 </span>
-                <span className="text-[11px] font-semibold text-info">Acceder →</span>
+                <span className="text-[11px] font-semibold text-info flex items-center gap-1">Acceder <ArrowRightIcon size={12} /></span>
               </button>
             </div>
           </div>

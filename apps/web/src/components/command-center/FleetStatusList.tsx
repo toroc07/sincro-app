@@ -1,4 +1,5 @@
 import type { VehicleWithLocation } from '@dispatch/contracts';
+import { ArrowRightIcon } from '@/src/components/ui/icons';
 
 interface FleetStatusListProps {
   vehicles: VehicleWithLocation[];
@@ -50,10 +51,12 @@ export function FleetStatusList({
           const isAvail = veh.status === 'AVAILABLE';
 
           return (
-            <div
+            <button
               key={veh.id}
+              type="button"
               onClick={() => onSelect(veh.id)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer list-in ${
+              aria-pressed={isSelected}
+              className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer list-in ${
                 isSelected
                   ? 'bg-ok/10 border-ok/50 shadow-md shadow-ok/10'
                   : 'bg-surface-raised/60 border-edge-strong hover:border-ok/30 hover:bg-surface-raised'
@@ -61,9 +64,9 @@ export function FleetStatusList({
               style={{ animationDelay: `${Math.min(i * 35, 300)}ms` }}
             >
               <div className="flex items-start justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs border ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs border shrink-0 ${
                       isAvail
                         ? 'bg-ok/20 text-ok border-ok/30'
                         : 'bg-emergency/20 text-emergency border-emergency/30'
@@ -71,8 +74,8 @@ export function FleetStatusList({
                   >
                     {veh.callsign}
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-content leading-tight">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-content leading-tight truncate">
                       Ambulancia {veh.callsign}
                     </h4>
                     <span className="text-[10px] text-content-secondary">
@@ -93,7 +96,7 @@ export function FleetStatusList({
               {/* Telemetría básica */}
               <div className="flex items-center gap-3 mt-2 text-[10px] text-content-muted">
                 <span>Velocidad: <strong className="text-content-secondary tnum">{veh.location?.speedKmh ?? 0} km/h</strong></span>
-                <span>•</span>
+                <span className="w-1 h-1 rounded-full bg-edge-strong" aria-hidden="true" />
                 <span>{veh.isStale
                   ? <span className="text-warn">GPS: <strong>Atenuado</strong></span>
                   : <span className="text-ok">GPS: <strong>Tiempo real</strong></span>}
@@ -103,10 +106,10 @@ export function FleetStatusList({
               <div className="mt-2.5 pt-2 border-t border-edge-subtle flex items-center justify-between text-[10px] text-content-muted">
                 <span>Zona: Bahía / Cartagena</span>
                 <span className="text-ok font-medium hover:underline flex items-center gap-1">
-                  Localizar unidad &rarr;
+                  Localizar unidad <ArrowRightIcon size={11} />
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
 

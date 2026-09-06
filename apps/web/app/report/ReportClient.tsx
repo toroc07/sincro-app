@@ -341,7 +341,7 @@ function RecordButton({ isRecording, level, seconds, onStart, onStop }: {
           type="button"
           onClick={isRecording ? onStop : onStart}
           aria-label={isRecording ? 'Detener grabación' : 'Grabar descripción de la emergencia'}
-          className={`pressable relative flex h-44 w-44 flex-col items-center justify-center gap-2 rounded-full bg-emergency text-white shadow-2xl ${isRecording ? '' : 'animate-breathe'}`}
+          className={`pressable relative flex h-44 w-44 flex-col items-center justify-center gap-2 rounded-full bg-emergency text-on-emergency shadow-2xl ${isRecording ? '' : 'animate-breathe'}`}
         >
           {isRecording ? <StopIcon size={42} /> : <MicIcon size={46} />}
           <span className="text-lg font-bold">{isRecording ? <span className="tnum">{seconds.toFixed(0)} s</span> : 'Toca para hablar'}</span>
@@ -403,7 +403,7 @@ function ReviewPanel({
         />
       </div>
 
-      <button type="button" disabled={sending || !locationReady} aria-busy={sending} onClick={onSend} className="pressable mt-5 flex min-h-touch-lg w-full items-center justify-center gap-2 rounded-xl bg-emergency px-4 text-lg font-bold text-white shadow-lg disabled:opacity-50"><SendIcon size={21} />{sending ? 'Enviando reporte…' : 'Enviar reporte'}</button>
+      <button type="button" disabled={sending || !locationReady} aria-busy={sending} onClick={onSend} className="pressable mt-5 flex min-h-touch-lg w-full items-center justify-center gap-2 rounded-xl bg-emergency px-4 text-lg font-bold text-on-emergency shadow-lg disabled:opacity-50"><SendIcon size={21} />{sending ? 'Enviando reporte…' : 'Enviar reporte'}</button>
       <button type="button" disabled={sending} onClick={onRetry} className="pressable mt-2 flex min-h-touch w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-content-secondary"><RetryIcon size={18} /> Grabar de nuevo</button>
     </section>
   );
@@ -415,7 +415,7 @@ function MicUnavailable({ reason }: { reason: string }) {
       <AlertIcon className="mx-auto text-warn" size={34} />
       <h2 className="mt-3 text-xl font-bold">No podemos usar el micrófono</h2>
       <p className="mt-2 text-sm text-content-secondary">{reason === 'denied' ? 'Activa el permiso del micrófono en tu navegador.' : 'Este navegador no permite grabar audio.'}</p>
-      <a href="tel:123" className="mt-5 flex min-h-touch-lg items-center justify-center rounded-xl bg-emergency px-4 font-bold text-white">Llamar al 123</a>
+      <a href="tel:123" className="mt-5 flex min-h-touch-lg items-center justify-center rounded-xl bg-emergency px-4 font-bold text-on-emergency">Llamar al 123</a>
     </section>
   );
 }

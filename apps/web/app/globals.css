@@ -60,6 +60,15 @@
   --info:      #4cc4ff;
   --info-soft: rgba(76, 196, 255, 0.14);
 
+  /* Tinta de los botones de marca (texto/ícono sobre emergency/info/ok/warn).
+     En tema OSCURO los fondos de marca son claros y el blanco falla AA (~3.4:1);
+     se usa una tinta oscura. En tema CLARO los fondos son oscuros y el blanco
+     pasa AA, así que la tinta cambia con el tema (ver media query y .app-light). */
+  --on-emergency: #0a0d14;
+  --on-info:      #0a0d14;
+  --on-ok:        #0a0d14;
+  --on-warn:      #0a0d14;
+
   --border-subtle: rgba(174, 187, 212, 0.14);
   --border-strong: rgba(174, 187, 212, 0.28);
 
@@ -88,6 +97,7 @@
   --touch-comfort: 64px;
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
 }
 
 /* Tema claro automático: si el SO pide claro y nadie forzó `.app-light`,
@@ -113,6 +123,11 @@
     --warn-soft:         rgba(166, 83, 0, 0.11);
     --info:              #0969a2;
     --info-soft:         rgba(9, 105, 162, 0.10);
+    /* En tema claro los fondos de marca son oscuros: el blanco pasa AA. */
+    --on-emergency: #ffffff;
+    --on-info:      #ffffff;
+    --on-ok:        #ffffff;
+    --on-warn:      #ffffff;
     --border-subtle:     rgba(11, 21, 38, 0.11);
     --border-strong:     rgba(11, 21, 38, 0.22);
     --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
@@ -144,6 +159,10 @@
   --warn-soft: rgba(166, 83, 0, 0.11);
   --info: #0969a2;
   --info-soft: rgba(9, 105, 162, 0.10);
+  --on-emergency: #ffffff;
+  --on-info: #ffffff;
+  --on-ok: #ffffff;
+  --on-warn: #ffffff;
   --border-subtle: rgba(11, 21, 38, 0.11);
   --border-strong: rgba(11, 21, 38, 0.22);
   --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
@@ -292,16 +311,6 @@ h1, h2, h3 {
 }
 .animate-breathe { animation: breathe 2.4s var(--motion-enter) infinite; }
 
-/* Modal: el scrim se desvanece, el panel entra con una leve subida + escala.
-   Mismo vocabulario de duración/easing que el resto de la app. */
-@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes panel-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)     scale(1); }
-}
-.modal-scrim-in { animation: scrim-in var(--motion-base) var(--motion-enter) both; }
-.modal-panel-in { animation: panel-in var(--motion-base) var(--motion-enter) both; }
-
 /* Entrada de pantalla: cada app móvil y el centro de mando entran con una
    subida suave. Se pone sobre el contenedor raíz, una sola vez por pantalla. */
 @keyframes screen-in {
@@ -329,7 +338,6 @@ h1, h2, h3 {
 @keyframes skeleton-sweep {
   to { transform: translateX(100%); }
 }
-.skeleton-static { background: var(--surface-overlay); }
 
 /* Scrollbar compacta del centro de mando (se usa y antes no estaba definida):
    timón fino, discreto, con los tokens, en lugar del scrollbar gordo del SO. */
@@ -371,34 +379,72 @@ h1, h2, h3 {
 }
 .list-in { animation: list-in 320ms var(--motion-enter) both; }
 
-/* Contador de métricas: la cifra cambia con una transición de opacidad +
-   leve escala para no parpadear. */
-.metric-value { transition: opacity 220ms var(--motion-enter), transform 220ms var(--motion-enter); }
-
 /* Respeta la preferencia del sistema. Personas con trastornos vestibulares o
    migraña pueden marearse con movimiento; y aquí ya están bajo estrés. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    /* Los delays escalonados (stagger) dejan el elemento en opacity:0 mientras
+       esperan; con movimiento reducido deben saltarse el delay también. */
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }
 
 /* Sol directo: en alto contraste subimos bordes y apagamos superficies
-   intermedias que se vuelven invisibles al aire libre. */
+   intermedias que se vuelven invisibles al aire libre. El tema claro y el tema
+   oscuro necesitan valores distintos: reforzar con el valor equivocado es
+   peor que no reforzar (texto claro sobre fondo blanco desaparece). */
 @media (prefers-contrast: more) {
+  /* Tema oscuro (default y centro de mando). */
   :root {
     --text-secondary: #d6e0f2;
     --text-muted:     #aebbd4;
     --border-subtle:  rgba(174, 187, 212, 0.34);
     --border-strong:  rgba(174, 187, 212, 0.55);
+    --ok:      #5ee4b8;
+    --ok-soft: rgba(52, 217, 154, 0.24);
+    --warn:      #ffc45e;
+    --warn-soft: rgba(255, 178, 36, 0.24);
+    --info:      #7fd8ff;
+    --info-soft: rgba(76, 196, 255, 0.24);
+  }
+
+  /* Tema claro automático. */
+  @media (prefers-color-scheme: light) {
+    :root:not(.forced-dark) {
+      --text-secondary: #24334a;
+      --text-muted:     #31415c;
+      --border-subtle:  rgba(11, 21, 38, 0.32);
+      --border-strong:  rgba(11, 21, 38, 0.50);
+    }
+  }
+
+  /* Pantallas móviles claras explícitas (.app-light): mismo refuerzo que :root
+     claro, sobre el propio elemento que declara los tokens claros. */
+  .app-light {
+    --text-secondary: #24334a;
+    --text-muted:     #31415c;
+    --border-subtle:  rgba(11, 21, 38, 0.32);
+    --border-strong:  rgba(11, 21, 38, 0.50);
+    --ok:        #065f45;
+    --ok-soft:   rgba(8, 127, 91, 0.18);
+    --warn:      #7a3d00;
+    --warn-soft: rgba(166, 83, 0, 0.18);
+    --info:      #07507c;
+    --info-soft: rgba(9, 105, 162, 0.18);
+    --emergency:         #8f0926;
+    --emergency-soft:    rgba(217, 4, 41, 0.18);
+    --emergency-ring:    rgba(217, 4, 41, 0.42);
   }
 }
 
 /* Conseguir espacio vertical en móviles sin scroll: el webkit de iOS
    encoge estas dos sentencias; se mantienen por compatibilidad. */
 @supports (padding: max(0px)) {
-  .safe-top, .safe-bottom { padding-top: max(var(--space-5), env(safe-area-inset-top)); }
+  .safe-top    { padding-top:    max(var(--space-5), env(safe-area-inset-top)); }
+  .safe-bottom { padding-bottom: max(var(--space-5), env(safe-area-inset-bottom)); }
 }

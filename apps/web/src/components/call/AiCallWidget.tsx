@@ -449,12 +449,21 @@ export function AiCallWidget() {
     audioCtxRef.current = null;
   }
 
-  if (state === 'unavailable') return null;
+  if (state === 'unavailable') {
+    return (
+      <div className="rounded-md bg-surface-raised ring-1 ring-edge-subtle p-4" role="status">
+        <div className="flex items-start gap-2 text-warn text-[13px]">
+          <AlertIcon size={16} className="shrink-0 mt-0.5" />
+          <span>La orientación por voz no está disponible en este momento.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md bg-surface-raised ring-1 ring-edge-subtle p-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div aria-live="polite">
           <p className="font-semibold text-[15px]">Orientación por voz</p>
           <p className="text-[13px] text-content-secondary">
             {state === 'idle' ? 'Habla con la IA mientras esperas la ambulancia.' : STATUS_LABEL[state]}
@@ -465,7 +474,7 @@ export function AiCallWidget() {
             type="button"
             onClick={() => void startCall()}
             aria-label="Iniciar llamada con la IA"
-            className="pressable shrink-0 rounded-full bg-ok hover:brightness-110 text-white
+            className="pressable shrink-0 rounded-full bg-ok hover:bg-ok/90 text-on-ok
                        flex items-center justify-center"
             style={{ width: 'var(--touch-comfort)', height: 'var(--touch-comfort)' }}
           >
@@ -476,7 +485,8 @@ export function AiCallWidget() {
             type="button"
             onClick={endCall}
             aria-label="Colgar"
-            className="pressable shrink-0 rounded-full bg-emergency hover:bg-emergency-hover text-white
+            aria-busy
+            className="pressable shrink-0 rounded-full bg-emergency hover:bg-emergency-hover text-on-emergency
                        flex items-center justify-center"
             style={{ width: 'var(--touch-comfort)', height: 'var(--touch-comfort)' }}
           >
@@ -492,7 +502,7 @@ export function AiCallWidget() {
       )}
 
       {turns.length > 0 && (
-        <div className="mt-3 flex max-h-64 flex-col gap-2 overflow-y-auto">
+        <div className="mt-3 flex max-h-64 flex-col gap-2 overflow-y-auto" role="log" aria-live="polite" aria-relevant="additions">
           {turns.map((turn, i) => (
             <p
               key={i}
