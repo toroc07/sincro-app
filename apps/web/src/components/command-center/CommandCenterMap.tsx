@@ -105,19 +105,19 @@ export function CommandCenterMap({
           el.className = 'cursor-pointer group';
           el.innerHTML = `
             <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-              <div style="width:${isSelected ? '36px' : '30px'};height:${isSelected ? '36px' : '30px'};border-radius:8px;background:${fac.type === 'TRAUMA_CENTER' ? '#4f46e5' : '#0284c7'};display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.35);border:2px solid #ffffff;transition:transform 0.2s;">
+              <div style="width:${isSelected ? '36px' : '30px'};height:${isSelected ? '36px' : '30px'};border-radius:8px;background:${fac.type === 'TRAUMA_CENTER' ? '#4f46e5' : 'var(--info)'};display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.35);border:2px solid #ffffff;transition:transform 0.2s;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round">
                   <path d="M12 4v16m-8-8h16" />
                 </svg>
               </div>
-              <div style="position:absolute;bottom:-20px;white-space:nowrap;font-size:10px;font-weight:700;background:rgba(15,23,42,0.9);color:#e2e8f0;padding:1px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);pointer-events:none;">
+              <div style="position:absolute;bottom:-20px;white-space:nowrap;font-size:10px;font-weight:700;background:var(--surface-overlay);color:var(--text-secondary);padding:1px 6px;border-radius:4px;border:1px solid var(--border-subtle);pointer-events:none;">
                 ${fac.name}
               </div>
             </div>
           `;
 
-          const popup = new Popup({ offset: 18, closeButton: false }).setHTML(`
-            <div style="font-family:sans-serif;color:#0f172a;padding:4px;min-width:160px;">
+          const popup = new Popup({ offset: 18, closeButton: false, maxWidth: '240px' }).setHTML(`
+            <div style="font-family:var(--font-sans);color:#0f172a;padding:4px;min-width:160px;">
               <div style="font-weight:800;font-size:13px;margin-bottom:2px;">${fac.name}</div>
               <div style="font-size:11px;color:#64748b;margin-bottom:6px;">${fac.type === 'TRAUMA_CENTER' ? 'Centro de Trauma / Alta Complejidad' : 'Hospital Distrital'}</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -144,19 +144,19 @@ export function CommandCenterMap({
           const isSelected = selectedEntity?.type === 'vehicle' && selectedEntity?.id === veh.id;
           const isAvail = veh.status === 'AVAILABLE';
           const isBusy = ['ASSIGNED', 'EN_ROUTE', 'ON_SCENE', 'TRANSPORTING'].includes(veh.status);
-          const color = isAvail ? '#10b981' : isBusy ? '#ef4444' : '#64748b';
+          const color = isAvail ? 'var(--ok)' : isBusy ? 'var(--emergency)' : 'var(--surface-pressed)';
 
           const el = document.createElement('div');
           el.className = 'cursor-pointer';
           el.innerHTML = `
             <div style="position:relative;width:${isSelected ? '38px' : '32px'};height:${isSelected ? '38px' : '32px'};display:flex;align-items:center;justify-content:center;">
-              ${isAvail || isBusy ? `<span style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.25;animation:pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"></span>` : ''}
+              ${isAvail || isBusy ? `<span style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.25;animation:dispatch-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;"></span>` : ''}
               <div style="width:${isSelected ? '28px' : '24px'};height:${isSelected ? '28px' : '24px'};border-radius:50%;background:${color};border:2px solid #ffffff;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round">
                   <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1 .4-1 1v9c0 .6.4 1 1 1h2m0 0a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0M7 11h4"/>
                 </svg>
               </div>
-              <div style="position:absolute;top:-16px;white-space:nowrap;font-size:9px;font-weight:800;background:rgba(15,23,42,0.85);color:#ffffff;padding:0px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);">
+              <div style="position:absolute;top:-16px;white-space:nowrap;font-size:9px;font-weight:800;background:var(--surface-overlay);color:#ffffff;padding:0px 4px;border-radius:3px;border:1px solid var(--border-subtle);">
                 ${veh.callsign}
               </div>
             </div>
@@ -194,17 +194,17 @@ export function CommandCenterMap({
           el.className = 'cursor-pointer';
           el.innerHTML = `
             <div style="position:relative;width:${isSelected ? '36px' : '30px'};height:${isSelected ? '36px' : '30px'};display:flex;align-items:center;justify-content:center;">
-              <span style="position:absolute;inset:0;border-radius:50%;background:#e11d48;opacity:0.35;animation:ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-              <div style="width:${isSelected ? '26px' : '22px'};height:${isSelected ? '26px' : '22px'};border-radius:50%;background:#e11d48;border:2px solid #ffffff;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
+              <span style="position:absolute;inset:0;border-radius:50%;background:var(--emergency);opacity:0.35;animation:dispatch-pulse 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+              <div style="width:${isSelected ? '26px' : '22px'};height:${isSelected ? '26px' : '22px'};border-radius:50%;background:var(--emergency);border:2px solid #ffffff;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
                 <span style="color:#ffffff;font-size:10px;font-weight:900;">!</span>
               </div>
-              <div style="position:absolute;top:-18px;white-space:nowrap;font-size:9px;font-weight:800;background:#991b1b;color:#ffffff;padding:1px 5px;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.3);">
+              <div style="position:absolute;top:-18px;white-space:nowrap;font-size:9px;font-weight:800;background:var(--emergency);color:#ffffff;padding:1px 5px;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,0.3);">
                 ${inc.priority || 'EMG'} · ${inc.code}
               </div>
             </div>
           `;
 
-          const popup = new Popup({ offset: 16, closeButton: false }).setHTML(`
+          const popup = new Popup({ offset: 16, closeButton: false, maxWidth: '240px' }).setHTML(`
             <div style="font-family:sans-serif;color:#0f172a;padding:4px;min-width:170px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                 <span style="font-weight:800;font-size:13px;color:#e11d48;">Incidente ${inc.code}</span>
@@ -266,54 +266,57 @@ export function CommandCenterMap({
   }, [selectedEntity, ready, vehicles, incidents, facilities]);
 
   return (
-    <div className="relative w-full h-full min-h-[420px] rounded-2xl overflow-hidden border border-[#1b263b] shadow-inner">
+    <div className="relative w-full h-full min-h-[420px] rounded-2xl overflow-hidden border border-edge-strong shadow-inner">
       {/* Contenedor del mapa */}
       <div ref={containerRef} className="w-full h-full" />
 
       {/* Barra de Filtros Flotante */}
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2 bg-[#0c1220]/90 backdrop-blur-md p-2 rounded-xl border border-white/10 shadow-lg text-xs">
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2 bg-surface-base/90 backdrop-blur-md p-2 rounded-xl border border-edge-subtle shadow-md text-xs">
         <button
           type="button"
           onClick={() => setShowVehicles((v) => !v)}
+          aria-pressed={showVehicles}
           className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
             showVehicles
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-              : 'bg-white/5 text-slate-400 border border-transparent'
+              ? 'bg-ok/20 text-ok border border-ok/40'
+              : 'bg-surface-pressed/40 text-content-muted border border-transparent'
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${showVehicles ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+          <span className={`w-2 h-2 rounded-full ${showVehicles ? 'bg-ok' : 'bg-content-muted'}`} />
           Ambulancias ({vehicles.length})
         </button>
 
         <button
           type="button"
           onClick={() => setShowIncidents((v) => !v)}
+          aria-pressed={showIncidents}
           className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
             showIncidents
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-              : 'bg-white/5 text-slate-400 border border-transparent'
+              ? 'bg-emergency/20 text-emergency border border-emergency/40'
+              : 'bg-surface-pressed/40 text-content-muted border border-transparent'
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${showIncidents ? 'bg-rose-400' : 'bg-slate-500'}`} />
+          <span className={`w-2 h-2 rounded-full ${showIncidents ? 'bg-emergency' : 'bg-content-muted'}`} />
           Emergencias ({incidents.length})
         </button>
 
         <button
           type="button"
           onClick={() => setShowFacilities((v) => !v)}
+          aria-pressed={showFacilities}
           className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
             showFacilities
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-              : 'bg-white/5 text-slate-400 border border-transparent'
+              ? 'bg-info/20 text-info border border-info/40'
+              : 'bg-surface-pressed/40 text-content-muted border border-transparent'
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${showFacilities ? 'bg-sky-400' : 'bg-slate-500'}`} />
+          <span className={`w-2 h-2 rounded-full ${showFacilities ? 'bg-info' : 'bg-content-muted'}`} />
           Hospitales ({facilities.length})
         </button>
       </div>
 
       {/* Indicador de coordenadas o ciudad */}
-      <div className="absolute bottom-3 left-3 z-10 hidden sm:block bg-[#0c1220]/80 backdrop-blur-sm px-2.5 py-1 rounded-md border border-white/5 text-[10px] text-slate-400 font-mono">
+      <div className="absolute bottom-3 left-3 z-10 hidden sm:block bg-surface-base/80 backdrop-blur-sm px-2.5 py-1 rounded-md border border-edge-subtle text-[10px] text-content-muted font-mono">
         Cartagena de Indias D.T. y C. · Cuadrante de Monitoreo
       </div>
     </div>

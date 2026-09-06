@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   AlertIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon, LocationIcon,
   LungsIcon, MicIcon, PhoneIcon, RetryIcon, SendIcon, SosIcon, StopIcon, UnconsciousIcon,
+  UserIcon,
 } from '@/src/components/ui/icons';
 import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -169,7 +170,7 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
   const recording = recorder.recording;
 
   return (
-    <main className="app-light mobile-app-shell safe-x flex flex-col">
+    <main className="app-light mobile-app-shell safe-x flex flex-col screen-enter">
       <header className="safe-top flex items-center justify-between gap-3 pb-4 animate-fade-up">
         <div className="flex items-center gap-3 min-w-0">
           <BrandMark size={44} />
@@ -186,7 +187,7 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
               className="flex items-center gap-1.5 rounded-full border border-edge-strong bg-surface-base px-2.5 py-1 text-xs font-semibold text-content hover:bg-surface-raised transition shadow-sm"
               title="Ver mi perfil y reportes"
             >
-              <span className="text-sm">👤</span>
+              <UserIcon size={15} className="text-emergency" />
               <span className="max-w-[75px] truncate">{citizen.name.split(' ')[0]}</span>
             </Link>
           ) : (
@@ -340,7 +341,7 @@ function RecordButton({ isRecording, level, seconds, onStart, onStop }: {
           type="button"
           onClick={isRecording ? onStop : onStart}
           aria-label={isRecording ? 'Detener grabación' : 'Grabar descripción de la emergencia'}
-          className={`pressable relative flex h-44 w-44 flex-col items-center justify-center gap-2 rounded-full bg-emergency text-white shadow-2xl ${isRecording ? '' : 'animate-breathe'}`}
+          className={`pressable relative flex h-44 w-44 flex-col items-center justify-center gap-2 rounded-full bg-emergency text-on-emergency shadow-2xl ${isRecording ? '' : 'animate-breathe'}`}
         >
           {isRecording ? <StopIcon size={42} /> : <MicIcon size={46} />}
           <span className="text-lg font-bold">{isRecording ? <span className="tnum">{seconds.toFixed(0)} s</span> : 'Toca para hablar'}</span>
@@ -385,7 +386,7 @@ function ReviewPanel({
             <span>Celular de contacto para la ambulancia</span>
           </span>
           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${hasValidPhone ? 'bg-ok-soft text-ok' : 'bg-emergency-soft text-emergency'}`}>
-            {hasValidPhone ? '✓ LISTO' : 'REQUERIDO'}
+            <span className="inline-flex items-center gap-1"><CheckIcon size={12} /> LISTO</span>
           </span>
         </label>
         <p className="mt-1 text-[11px] text-content-secondary">
@@ -402,7 +403,7 @@ function ReviewPanel({
         />
       </div>
 
-      <button type="button" disabled={sending || !locationReady} aria-busy={sending} onClick={onSend} className="pressable mt-5 flex min-h-touch-lg w-full items-center justify-center gap-2 rounded-xl bg-emergency px-4 text-lg font-bold text-white shadow-lg disabled:opacity-50"><SendIcon size={21} />{sending ? 'Enviando reporte…' : 'Enviar reporte'}</button>
+      <button type="button" disabled={sending || !locationReady} aria-busy={sending} onClick={onSend} className="pressable mt-5 flex min-h-touch-lg w-full items-center justify-center gap-2 rounded-xl bg-emergency px-4 text-lg font-bold text-on-emergency shadow-lg disabled:opacity-50"><SendIcon size={21} />{sending ? 'Enviando reporte…' : 'Enviar reporte'}</button>
       <button type="button" disabled={sending} onClick={onRetry} className="pressable mt-2 flex min-h-touch w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-content-secondary"><RetryIcon size={18} /> Grabar de nuevo</button>
     </section>
   );
@@ -414,7 +415,7 @@ function MicUnavailable({ reason }: { reason: string }) {
       <AlertIcon className="mx-auto text-warn" size={34} />
       <h2 className="mt-3 text-xl font-bold">No podemos usar el micrófono</h2>
       <p className="mt-2 text-sm text-content-secondary">{reason === 'denied' ? 'Activa el permiso del micrófono en tu navegador.' : 'Este navegador no permite grabar audio.'}</p>
-      <a href="tel:123" className="mt-5 flex min-h-touch-lg items-center justify-center rounded-xl bg-emergency px-4 font-bold text-white">Llamar al 123</a>
+      <a href="tel:123" className="mt-5 flex min-h-touch-lg items-center justify-center rounded-xl bg-emergency px-4 font-bold text-on-emergency">Llamar al 123</a>
     </section>
   );
 }

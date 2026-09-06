@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { estimateEta, type Assignment, type Incident, type VehicleWithLocation } from '@dispatch/contracts';
 import { useEffect, useRef, useState } from 'react';
-import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon } from '@/src/components/ui/icons';
+import { AlertIcon, CheckIcon, LocationIcon, PhoneIcon, UserIcon } from '@/src/components/ui/icons';
 import { Badge, BrandLockup, BrandMark, Button } from '@/src/components/ui';
 import { LiveRouteMap } from '@/src/components/map/LiveRouteMap';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -226,7 +226,7 @@ export function ResponderClient() {
     : fallbackEta ? Math.max(1, Math.round(fallbackEta.etaSeconds / 60)) : null;
 
   return (
-    <main className="app-light responder-shell">
+    <main className="app-light responder-shell screen-enter">
       <ResponderHeader
         gps={tracking.state}
         queued={tracking.queued}
@@ -308,7 +308,7 @@ export function ResponderClient() {
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${incident.lat},${incident.lng}&travelmode=driving`}
                 target="_blank" rel="noopener noreferrer"
-                className="pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl bg-info font-bold text-white"
+                className="pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl bg-info font-bold text-on-info"
               >
                 <LocationIcon size={19} /> Cómo llegar
               </a>
@@ -329,7 +329,7 @@ export function ResponderClient() {
                   <CheckIcon size={18} /> Ya avisamos que vas en camino
                 </p>
               ) : (
-                <Button className="responder-action bg-ok text-white" disabled={busy} onClick={() => void notifyEnRoute()}>
+                <Button className="responder-action bg-ok text-on-ok" disabled={busy} onClick={() => void notifyEnRoute()}>
                   {busy ? 'Enviando…' : 'Notificar: voy en camino'}
                 </Button>
               )
@@ -358,7 +358,7 @@ function ResponderHeader({
   staff?: { name: string; role: string } | null;
   activeShift?: { callsign: string; shiftId: string } | null;
 }) {
-  const backgrounds = { green: 'bg-[#087f5b]', red: 'bg-[#d90429]', slate: 'bg-[#1f2a3d]' };
+  const backgrounds = { green: 'bg-ok', red: 'bg-emergency', slate: 'bg-[#1f2a3d]' };
   const danger = gps !== 'sending';
   return (
     <header className={`responder-header ${backgrounds[tone]}`}>
@@ -379,7 +379,7 @@ function ResponderHeader({
               className="rounded-full bg-white/20 hover:bg-white/30 px-2.5 py-1 text-xs font-bold text-white transition flex items-center gap-1 ring-1 ring-white/30"
               title="Ir al perfil de guardia del paramédico"
             >
-              <span>👤</span>
+              <UserIcon size={15} className="inline-block" />
               <span className="max-w-[95px] truncate">{staff ? staff.name : (activeShift ? `U-${activeShift.callsign}` : 'Mi Guardia')}</span>
             </Link>
             <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/30">{status}</span>

@@ -35,7 +35,13 @@ export const viewport: Viewport = {
   // NO se limita maximumScale ni se pone userScalable:false. Bloquear el zoom
   // es una barrera de accesibilidad seria, y aquí puede usarla alguien con baja
   // visión que necesita ampliar para leer un ETA.
-  themeColor: '#070b14',
+  /* Equivale a <meta name="theme-color"> dinámico según el SO.
+     Mantiene la barra de estado oscura sobre el centro de mando y clara sobre
+     las pantallas móviles, en lugar de forzar oscura siempre. */
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#070b14' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+  ],
   // El contenido llega hasta los bordes; las safe-areas se manejan en CSS.
   viewportFit: 'cover',
 };

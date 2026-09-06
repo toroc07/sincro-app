@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowRightIcon } from '@/src/components/ui/icons';
 
 /**
  * Confirmación por deslizamiento para acciones irreversibles (rechazar,
@@ -51,7 +52,8 @@ export function SlideToConfirm({ label, onConfirm, disabled = false, large = fal
         value={value}
       />
       <span className="relative block text-xs font-bold text-content-muted">
-        DESLIZA HASTA EL FINAL →
+        DESLIZA HASTA EL FINAL
+        <ArrowRightIcon size={13} className="inline-block align-[-2px] ml-1" />
       </span>
     </label>
   );

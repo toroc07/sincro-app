@@ -17,9 +17,16 @@ const LABELS: Record<TrackingStep, string> = {
   RECEIVED: 'Reporte recibido', ASSIGNING: 'Buscando ayuda', ON_THE_WAY: 'Ayuda en camino',
   ARRIVED: 'Unidad en el lugar', TRANSPORTING: 'Traslado en curso', COMPLETED: 'Atención completada',
 };
-const STEP_TONE: Record<TrackingStep, string> = {
-  RECEIVED: '#e44b23', ASSIGNING: '#e6aa12', ON_THE_WAY: '#1684d6',
-  ARRIVED: '#6634ad', TRANSPORTING: '#087f5b', COMPLETED: '#087f5b',
+const STEP_BG: Record<TrackingStep, string> = {
+  RECEIVED: 'bg-[#e44b23]', ASSIGNING: 'bg-[#e6aa12]', ON_THE_WAY: 'bg-info',
+  ARRIVED: 'bg-[#6d28d9]', TRANSPORTING: 'bg-ok', COMPLETED: 'bg-ok',
+};
+/* Tinta legible sobre el color de cada paso. Estas pantallas son siempre
+   tema claro (.app-light), donde --ok y --info son oscuros y aguantan blanco.
+   El paso ámbar (#e6aa12) es claro en cualquier tema y necesita tinta negra. */
+const STEP_INK: Record<TrackingStep, string> = {
+  RECEIVED: 'text-white', ASSIGNING: 'text-black', ON_THE_WAY: 'text-white',
+  ARRIVED: 'text-white', TRANSPORTING: 'text-white', COMPLETED: 'text-white',
 };
 const CONFIRM_TYPES: Array<{ type: IncidentType; label: string; Icon: ComponentType<{ size?: number }> }> = [
   { type: 'TRAFFIC_ACCIDENT', label: 'Accidente', Icon: CarCrashIcon },
@@ -51,10 +58,14 @@ export function TrackingClient({ token }: { token: string }) {
 
   useEffect(() => {
     void load();
+    // COMPLETED es un estado terminal (incluye lo cancelado, ver getTracking):
+    // nada va a cambiar ya. Seguir sondeando cada 4s solo gasta batería y
+    // datos del teléfono de alguien que probablemente ya cerró la pestaña.
+    if (tracking?.step === 'COMPLETED') return;
     const tick = () => { void load(); timerRef.current = window.setTimeout(tick, POLL_MS); };
     timerRef.current = window.setTimeout(tick, POLL_MS);
     return () => { if (timerRef.current !== null) window.clearTimeout(timerRef.current); };
-  }, [load]);
+  }, [load, tracking?.step]);
 
   const confirmType = useCallback(async (type: IncidentType) => {
     setConfirming(true);
@@ -69,12 +80,12 @@ export function TrackingClient({ token }: { token: string }) {
   }, [token]);
 
   if (!tracking) {
-    return <main className="app-light mobile-app-shell safe-x flex items-center justify-center"><div className="text-center" role="status"><span className="mx-auto block h-10 w-10 animate-spin rounded-full border-4 border-edge-subtle border-t-emergency" /><p className="mt-4 text-content-secondary">{offline ? 'Sin conexión. Reintentando…' : 'Preparando tu seguimiento…'}</p></div></main>;
+    return <main className="app-light mobile-app-shell safe-x flex items-center justify-center" role="status"><div className="w-full max-w-sm px-2"><div className="skeleton h-14 rounded-2xl" /><div className="skeleton h-40 rounded-2xl mt-3" /><p className="mt-4 text-center text-content-secondary">{offline ? 'Sin conexión. Reintentando…' : 'Preparando tu seguimiento…'}</p></div></main>;
   }
 
   const currentIndex = TRACKING_STEP.indexOf(tracking.step);
   return (
-    <main className="app-light mobile-app-shell safe-x pb-10">
+    <main className="app-light mobile-app-shell safe-x pb-10 screen-enter">
       <header className="safe-top pb-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -109,7 +120,7 @@ export function TrackingClient({ token }: { token: string }) {
         <ConfirmTypePanel disabled={confirming} onSelect={confirmType} />
       )}
 
-      <Timeline current={tracking.step} timeline={tracking.timeline} />
+      <Timeline current={tracking.step} timeline={tracking.timeline} currentHeadline={tracking.headline} />
 
       {tracking.reportCount > 1 && (
         <p className="mt-4 rounded-xl border border-info/20 bg-info-soft px-4 py-3 text-sm leading-relaxed text-info">
@@ -127,8 +138,8 @@ export function TrackingClient({ token }: { token: string }) {
 function ProgressStrip({ currentIndex }: { currentIndex: number }) {
   return (
     <div className="mt-5" aria-label={`Paso ${currentIndex + 1} de ${TRACKING_STEP.length}: ${LABELS[TRACKING_STEP[currentIndex]]}`}>
-      <div className="flex items-center">
-        {TRACKING_STEP.map((step, index) => <div key={step} className="flex flex-1 items-center last:flex-none"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: index <= currentIndex ? STEP_TONE[step] : '#c8d0dc' }}>{index < currentIndex ? <CheckIcon size={15} /> : index + 1}</span>{index < TRACKING_STEP.length - 1 && <span className="h-1 flex-1" style={{ backgroundColor: index < currentIndex ? STEP_TONE[TRACKING_STEP[index + 1]] : '#dce2ea' }} />}</div>)}
+      <div className="flex items-center" aria-hidden="true">
+        {TRACKING_STEP.map((step, index) => <div key={step} className="flex flex-1 items-center last:flex-none"><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${index <= currentIndex ? STEP_BG[step] : 'bg-surface-overlay text-content-muted'} ${index <= currentIndex ? STEP_INK[step] : ''}`}>{index < currentIndex ? <CheckIcon size={15} /> : index + 1}</span>{index < TRACKING_STEP.length - 1 && <span className={`h-1 flex-1 ${index < currentIndex ? STEP_BG[TRACKING_STEP[index + 1]] : 'bg-surface-overlay'}`} />}</div>)}
       </div>
       <p className="mt-2 text-center text-xs font-semibold text-content-secondary">{LABELS[TRACKING_STEP[currentIndex]]}</p>
     </div>
@@ -138,7 +149,7 @@ function ProgressStrip({ currentIndex }: { currentIndex: number }) {
 function StatusHero({ tracking }: { tracking: TrackingResponse }) {
   const minutes = tracking.etaSeconds === null ? null : Math.max(1, Math.round(tracking.etaSeconds / 60));
   return (
-    <section className="overflow-hidden rounded-2xl text-white shadow-lg" style={{ background: `linear-gradient(145deg, ${STEP_TONE[tracking.step]}, ${STEP_TONE[tracking.step]}dd)` }}>
+    <section className={`overflow-hidden rounded-2xl shadow-lg ${STEP_BG[tracking.step]} ${STEP_INK[tracking.step]}`}>
       <div className="p-5">
         <p className="text-xs font-bold uppercase tracking-[.16em] opacity-80">{LABELS[tracking.step]}</p>
         {minutes !== null && <p className="mt-2 flex items-baseline gap-2"><span className="tnum text-5xl font-bold leading-none">{minutes}</span><span className="text-lg font-semibold">min aprox.</span></p>}
@@ -177,9 +188,11 @@ function ConfirmTypePanel({ onSelect, disabled }: { onSelect: (type: IncidentTyp
   );
 }
 
-function Timeline({ current, timeline }: { current: TrackingStep; timeline: TrackingResponse['timeline'] }) {
+function Timeline({
+  current, timeline, currentHeadline,
+}: { current: TrackingStep; timeline: TrackingResponse['timeline']; currentHeadline: string }) {
   const currentIndex = TRACKING_STEP.indexOf(current);
   return (
-    <section className="mt-5" aria-labelledby="timeline-title"><h2 id="timeline-title" className="text-lg font-bold">Qué está pasando</h2><ol className="mt-3 space-y-2">{TRACKING_STEP.slice(0, Math.max(2, currentIndex + 1)).map((step, index) => { const entry = timeline.find((item) => item.step === step); const active = index === currentIndex; return <li key={step} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${active ? 'border-info/30 bg-info-soft' : 'border-edge-subtle bg-surface-raised'}`}><span className={`grid h-7 w-7 place-items-center rounded-full ${index < currentIndex ? 'bg-ok text-white' : active ? 'bg-info text-white' : 'bg-surface-overlay text-content-muted'}`}>{index < currentIndex ? <CheckIcon size={16} /> : index + 1}</span><span className="flex-1 text-sm font-semibold">{LABELS[step]}</span>{entry && <time className="tnum text-xs text-content-muted">{new Date(entry.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</time>}</li>; })}</ol></section>
+    <section className="mt-5" aria-labelledby="timeline-title"><h2 id="timeline-title" className="text-lg font-bold">Qué está pasando</h2><ol className="mt-3 space-y-2">{TRACKING_STEP.slice(0, Math.max(2, currentIndex + 1)).map((step, index) => { const entry = timeline.find((item) => item.step === step); const active = index === currentIndex; return <li key={step} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${active ? 'border-info/30 bg-info-soft' : 'border-edge-subtle bg-surface-raised'}`}><span className={`grid h-7 w-7 place-items-center rounded-full ${index < currentIndex ? 'bg-ok text-on-ok' : active ? 'bg-info text-on-info' : 'bg-surface-overlay text-content-muted'}`}>{index < currentIndex ? <CheckIcon size={16} /> : index + 1}</span><span className="flex-1 text-sm font-semibold">{active ? currentHeadline : LABELS[step]}</span>{entry && <time className="tnum text-xs text-content-muted">{new Date(entry.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</time>}</li>; })}</ol></section>
   );
 }

@@ -169,7 +169,7 @@ export function LiveRouteMap({
         map.addLayer({
           id: 'route-line', type: 'line', source: 'route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#0b63d6', 'line-width': 6 },
+          paint: { 'line-color': 'var(--info)', 'line-width': 6 },
         });
         // Guiones que avanzan hacia el destino: dan sentido de movimiento
         // aunque el GPS tarde en actualizar.
@@ -418,7 +418,7 @@ export function LiveRouteMap({
 
       {!ready && (
         <div className="absolute inset-0 grid place-items-center bg-[#e8eef5]" role="status">
-          <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white border-t-[#0b63d6]" />
+          <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white border-t-info" />
           <span className="sr-only">Cargando el mapa</span>
         </div>
       )}
@@ -428,7 +428,7 @@ export function LiveRouteMap({
           {route?.source === 'graph' ? 'Ruta por calles · OpenStreetMap' : 'Trayecto estimado'}
         </span>
         {route && (
-          <span className="rounded-full bg-[#0b63d6] px-3 py-1 text-[11px] font-bold text-white shadow-sm">
+          <span className="rounded-full bg-info px-3 py-1 text-[11px] font-bold text-on-info shadow-sm">
             {(route.distanceMeters / 1000).toFixed(1)} km · {route.durationText}
           </span>
         )}
@@ -512,9 +512,9 @@ function vehicleElement(label: string): HTMLElement {
   element.setAttribute('aria-label', label);
   element.style.cssText = 'position:relative;width:46px;height:46px;display:grid;place-items:center;';
   element.innerHTML = `
-    <span style="position:absolute;inset:0;border-radius:50%;background:rgba(217,4,41,.20);
+    <span style="position:absolute;inset:0;border-radius:50%;background:color-mix(in srgb, var(--emergency) 20%, transparent);
                  animation:dispatch-pulse 1.8s ease-out infinite"></span>
-    <span style="position:relative;width:32px;height:32px;border-radius:50%;background:#d90429;
+    <span style="position:relative;width:32px;height:32px;border-radius:50%;background:var(--emergency);
                  box-shadow:0 3px 10px rgba(0,0,0,.32);display:grid;place-items:center">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
            stroke-width="2.6" stroke-linecap="round">
@@ -531,7 +531,7 @@ function destinationElement(label: string): HTMLElement {
   element.innerHTML = `
     <svg width="30" height="38" viewBox="0 0 30 38" fill="none">
       <path d="M15 37C15 37 28 23.5 28 14.5C28 7.04 22.18 1 15 1S2 7.04 2 14.5C2 23.5 15 37 15 37Z"
-            fill="#0b63d6" stroke="#fff" stroke-width="2.2"/>
+            fill="var(--info)" stroke="#fff" stroke-width="2.2"/>
       <circle cx="15" cy="14.5" r="5" fill="#fff"/>
     </svg>`;
   return element;
