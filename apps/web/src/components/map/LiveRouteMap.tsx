@@ -59,8 +59,12 @@ export interface LiveRouteMapProps {
   vehicle: Point | null;
   /** Destino: el lugar del incidente. */
   destination: Point;
+  /** Posición viva del ciudadano que reporta, si la está transmitiendo desde
+   *  /track y es fresca. `null`/ausente: no se pinta. */
+  reporter?: Point | null;
   vehicleLabel?: string;
   destinationLabel?: string;
+  reporterLabel?: string;
   height?: number;
   /** Notifica la ruta vigente para que el contenedor muestre la distancia y el
    *  ETA del grafo en vez de recalcular su propia estimación. */
@@ -75,13 +79,15 @@ interface ActiveRoute {
 }
 
 export function LiveRouteMap({
-  vehicle, destination, vehicleLabel = 'Ambulancia',
-  destinationLabel = 'Emergencia', height = 320, onRoute, className,
+  vehicle, destination, reporter = null, vehicleLabel = 'Ambulancia',
+  destinationLabel = 'Emergencia', reporterLabel = 'Reportante',
+  height = 320, onRoute, className,
 }: LiveRouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const vehicleMarkerRef = useRef<Marker | null>(null);
   const destinationMarkerRef = useRef<Marker | null>(null);
+  const reporterMarkerRef = useRef<Marker | null>(null);
 
   const routeRef = useRef<ActiveRoute | null>(null);
   const targetProgressRef = useRef(0);
@@ -114,6 +120,8 @@ export function LiveRouteMap({
   const vehicleLat = vehicle?.lat ?? null;
   const vehicleLng = vehicle?.lng ?? null;
   const { lat: destinationLat, lng: destinationLng } = destination;
+  const reporterLat = reporter?.lat ?? null;
+  const reporterLng = reporter?.lng ?? null;
 
   // ── Crear el mapa ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -194,6 +202,8 @@ export function LiveRouteMap({
       vehicleMarkerRef.current = null;
       destinationMarkerRef.current?.remove();
       destinationMarkerRef.current = null;
+      reporterMarkerRef.current?.remove();
+      reporterMarkerRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       setReady(false);
@@ -293,6 +303,36 @@ export function LiveRouteMap({
 
     return () => { cancelled = true; };
   }, [ready, destinationLat, destinationLng, destinationLabel]);
+
+  // ── Marcador del reportante ──────────────────────────────────────────────
+  // Un tercer punto, visualmente distinto del destino: el destino es DÓNDE se
+  // reportó la emergencia; este es dónde está el ciudadano AHORA (pudo moverse).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+
+    if (reporterLat === null || reporterLng === null) {
+      reporterMarkerRef.current?.remove();
+      reporterMarkerRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const { Marker: MarkerClass } = await import('maplibre-gl');
+      if (cancelled || !mapRef.current) return;
+
+      if (reporterMarkerRef.current) {
+        reporterMarkerRef.current.setLngLat([reporterLng, reporterLat]);
+      } else {
+        reporterMarkerRef.current = new MarkerClass({
+          element: reporterElement(reporterLabel), anchor: 'bottom',
+        }).setLngLat([reporterLng, reporterLat]).addTo(map);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [ready, reporterLat, reporterLng, reporterLabel]);
 
   // ── Animación ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -533,6 +573,22 @@ function destinationElement(label: string): HTMLElement {
       <path d="M15 37C15 37 28 23.5 28 14.5C28 7.04 22.18 1 15 1S2 7.04 2 14.5C2 23.5 15 37 15 37Z"
             fill="var(--info)" stroke="#fff" stroke-width="2.2"/>
       <circle cx="15" cy="14.5" r="5" fill="#fff"/>
+    </svg>`;
+  return element;
+}
+
+/** Pin ámbar con silueta de persona: la ubicación VIVA del ciudadano. Distinto
+ *  del pin de destino (azul, sitio del reporte) para que no se confundan. */
+function reporterElement(label: string): HTMLElement {
+  const element = document.createElement('div');
+  element.setAttribute('aria-label', label);
+  element.style.cssText = 'width:28px;height:36px;';
+  element.innerHTML = `
+    <svg width="28" height="36" viewBox="0 0 28 36" fill="none">
+      <path d="M14 35C14 35 26 22 26 13.5C26 6.6 20.6 1 14 1S2 6.6 2 13.5C2 22 14 35 14 35Z"
+            fill="#e6aa12" stroke="#fff" stroke-width="2.1"/>
+      <circle cx="14" cy="10" r="3.1" fill="#fff"/>
+      <path d="M8.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
     </svg>`;
   return element;
 }

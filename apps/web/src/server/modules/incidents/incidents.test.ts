@@ -34,6 +34,9 @@ class MemoryQueryable implements Queryable {
       row = this.reports.find((item) => item.idempotency_key === params[0]);
     } else if (normalized.startsWith('select * from assignments where incident_id = ?')) {
       row = undefined;
+    } else if (normalized === 'select signals from incidents where id = ?') {
+      const incident = this.incidents.find((item) => item.id === params[0]);
+      row = { signals: (incident?.signals as string | undefined) ?? '{}' };
     } else {
       throw new Error(`Consulta one no implementada: ${normalized}`);
     }

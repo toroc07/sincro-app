@@ -11,6 +11,7 @@ import {
 import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
 import type { RouteResult } from '@/src/lib/routing';
+import { useReporterTracking } from './useReporterTracking';
 
 const POLL_MS = 4_000;
 const LABELS: Record<TrackingStep, string> = {
@@ -46,6 +47,9 @@ export function TrackingClient({ token }: { token: string }) {
   const timerRef = useRef<number | null>(null);
 
   useKeepAlive();
+  // Mientras esta pantalla esté abierta, el dispositivo transmite su GPS para
+  // que la ambulancia vea al ciudadano moverse en tiempo real.
+  useReporterTracking(token, true);
 
   const load = useCallback(async () => {
     try {
@@ -58,10 +62,14 @@ export function TrackingClient({ token }: { token: string }) {
 
   useEffect(() => {
     void load();
+    // COMPLETED es un estado terminal (incluye lo cancelado, ver getTracking):
+    // nada va a cambiar ya. Seguir sondeando cada 4s solo gasta batería y
+    // datos del teléfono de alguien que probablemente ya cerró la pestaña.
+    if (tracking?.step === 'COMPLETED') return;
     const tick = () => { void load(); timerRef.current = window.setTimeout(tick, POLL_MS); };
     timerRef.current = window.setTimeout(tick, POLL_MS);
     return () => { if (timerRef.current !== null) window.clearTimeout(timerRef.current); };
-  }, [load]);
+  }, [load, tracking?.step]);
 
   const confirmType = useCallback(async (type: IncidentType) => {
     setConfirming(true);
@@ -99,8 +107,10 @@ export function TrackingClient({ token }: { token: string }) {
         <LiveRouteMap
           vehicle={tracking.vehicle ? { lat: tracking.vehicle.lat, lng: tracking.vehicle.lng } : null}
           destination={{ lat: tracking.incidentLat, lng: tracking.incidentLng }}
+          reporter={tracking.reporterLocation ? { lat: tracking.reporterLocation.lat, lng: tracking.reporterLocation.lng } : null}
           vehicleLabel={tracking.vehicle ? `Ambulancia ${tracking.vehicle.callsign}` : undefined}
-          destinationLabel="Tu ubicación"
+          destinationLabel="Lugar del reporte"
+          reporterLabel="Tu última posición enviada"
           onRoute={setRoute}
           height={320}
         />
@@ -116,7 +126,7 @@ export function TrackingClient({ token }: { token: string }) {
         <ConfirmTypePanel disabled={confirming} onSelect={confirmType} />
       )}
 
-      <Timeline current={tracking.step} timeline={tracking.timeline} />
+      <Timeline current={tracking.step} timeline={tracking.timeline} currentHeadline={tracking.headline} />
 
       {tracking.reportCount > 1 && (
         <p className="mt-4 rounded-xl border border-info/20 bg-info-soft px-4 py-3 text-sm leading-relaxed text-info">
@@ -184,9 +194,11 @@ function ConfirmTypePanel({ onSelect, disabled }: { onSelect: (type: IncidentTyp
   );
 }
 
-function Timeline({ current, timeline }: { current: TrackingStep; timeline: TrackingResponse['timeline'] }) {
+function Timeline({
+  current, timeline, currentHeadline,
+}: { current: TrackingStep; timeline: TrackingResponse['timeline']; currentHeadline: string }) {
   const currentIndex = TRACKING_STEP.indexOf(current);
   return (
-    <section className="mt-5" aria-labelledby="timeline-title"><h2 id="timeline-title" className="text-lg font-bold">Qué está pasando</h2><ol className="mt-3 space-y-2">{TRACKING_STEP.slice(0, Math.max(2, currentIndex + 1)).map((step, index) => { const entry = timeline.find((item) => item.step === step); const active = index === currentIndex; return <li key={step} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${active ? 'border-info/30 bg-info-soft' : 'border-edge-subtle bg-surface-raised'}`}><span className={`grid h-7 w-7 place-items-center rounded-full ${index < currentIndex ? 'bg-ok text-on-ok' : active ? 'bg-info text-on-info' : 'bg-surface-overlay text-content-muted'}`}>{index < currentIndex ? <CheckIcon size={16} /> : index + 1}</span><span className="flex-1 text-sm font-semibold">{LABELS[step]}</span>{entry && <time className="tnum text-xs text-content-muted">{new Date(entry.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</time>}</li>; })}</ol></section>
+    <section className="mt-5" aria-labelledby="timeline-title"><h2 id="timeline-title" className="text-lg font-bold">Qué está pasando</h2><ol className="mt-3 space-y-2">{TRACKING_STEP.slice(0, Math.max(2, currentIndex + 1)).map((step, index) => { const entry = timeline.find((item) => item.step === step); const active = index === currentIndex; return <li key={step} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${active ? 'border-info/30 bg-info-soft' : 'border-edge-subtle bg-surface-raised'}`}><span className={`grid h-7 w-7 place-items-center rounded-full ${index < currentIndex ? 'bg-ok text-on-ok' : active ? 'bg-info text-on-info' : 'bg-surface-overlay text-content-muted'}`}>{index < currentIndex ? <CheckIcon size={16} /> : index + 1}</span><span className="flex-1 text-sm font-semibold">{active ? currentHeadline : LABELS[step]}</span>{entry && <time className="tnum text-xs text-content-muted">{new Date(entry.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</time>}</li>; })}</ol></section>
   );
 }

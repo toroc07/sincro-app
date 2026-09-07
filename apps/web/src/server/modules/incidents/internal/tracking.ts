@@ -12,16 +12,31 @@
 
 import {
   toTrackingStep,
+  type ReporterLocationRequest,
   type TrackingResponse,
   type TrackingStep,
 } from '@dispatch/contracts';
-import { db } from '@/src/server/infra/db';
+import { db, type Queryable } from '@/src/server/infra/db';
 import { fetchGraphRoute } from '@/src/server/infra/routing';
 
 /** El seguimiento se refresca cada pocos segundos: si el servicio de rutas
  *  está dormido, es preferible el ETA en línea recta al instante que una
  *  pantalla congelada esperando el A*. */
 const ROUTE_TIMEOUT_MS = 2_500;
+
+/** Una posición del reportante se considera fresca durante este tiempo. Más
+ *  vieja y el mapa no la pinta: un punto congelado engaña. */
+const REPORTER_LOCATION_FRESH_MS = 60_000;
+
+/** Cadencia mínima entre posiciones aceptadas por token. El cliente ya limita
+ *  a 10s; esto frena a un cliente roto o malicioso. */
+const REPORTER_LOCATION_MIN_INTERVAL_MS = 5_000;
+
+/** Rate-limit en memoria del proceso. CAVEAT SERVERLESS: en varias instancias
+ *  cada una tiene su Map, así que el tope efectivo se multiplica por el número
+ *  de instancias. Suficiente: el objetivo es frenar un bucle roto, no un DDoS,
+ *  y el UPDATE es una sola fila por token. Mismo compromiso que el bus. */
+const lastLocationAt = new Map<string, number>();
 
 interface IncidentRow {
   id: string;
@@ -30,6 +45,9 @@ interface IncidentRow {
   lat: number;
   lng: number;
   created_at: number;
+  reporter_lat: number | null;
+  reporter_lng: number | null;
+  reporter_location_at: number | null;
 }
 
 interface AssignmentRow {
@@ -86,11 +104,13 @@ const STEP_LABEL: Record<TrackingStep, string> = {
   COMPLETED: 'Atención completada',
 };
 
-export async function getTracking(trackingToken: string): Promise<TrackingResponse | null> {
-  const q = db();
-
+export async function getTracking(
+  trackingToken: string,
+  q: Queryable = db(),
+): Promise<TrackingResponse | null> {
   const incident = await q.one<IncidentRow & Record<string, unknown>>(
-    `SELECT id, code, status, lat, lng, created_at
+    `SELECT id, code, status, lat, lng, created_at,
+            reporter_lat, reporter_lng, reporter_location_at
        FROM incidents WHERE tracking_token = ?`,
     [trackingToken],
   );
@@ -162,7 +182,20 @@ export async function getTracking(trackingToken: string): Promise<TrackingRespon
     }
   }
 
-  const copy = COPY[step];
+  // CANCELLED no tiene paso propio en TRACKING_STEP (son 6, congelados en
+  // contracts): toTrackingStep() lo cae al default 'COMPLETED' para que la
+  // barra de progreso no se rompa. Pero el copy de COMPLETED ("Gracias por
+  // reportar, tu aviso ayudó a que llegara ayuda") es FALSO si nunca llegó
+  // nadie — decirle eso al ciudadano es peor que no decir nada. Se sobrescribe
+  // aquí, no en COPY, porque es el único paso donde el texto depende del
+  // status crudo y no solo del TrackingStep.
+  const cancelled = incident.status === 'CANCELLED';
+  const copy = cancelled
+    ? {
+        headline: 'Este reporte se cerró',
+        detail: 'El centro de despacho cerró este caso sin enviar unidad. Si la emergencia sigue activa, llama al 123.',
+      }
+    : COPY[step];
 
   return {
     incidentCode: incident.code,
@@ -189,6 +222,46 @@ export async function getTracking(trackingToken: string): Promise<TrackingRespon
     distanceM,
     timeline,
     reportCount: reportCountRow?.n ?? 1,
+    reporterLocation: incident.reporter_lat != null
+      && incident.reporter_lng != null
+      && incident.reporter_location_at != null
+      && now - incident.reporter_location_at < REPORTER_LOCATION_FRESH_MS
+      ? { lat: incident.reporter_lat, lng: incident.reporter_lng, at: incident.reporter_location_at }
+      : null,
     serverTime: now,
   };
+}
+
+/**
+ * Guarda la última posición viva del ciudadano que reporta.
+ *
+ * Devuelve `null` si el token no existe (la ruta responde 404). Si el incidente
+ * ya está cerrado, o si llega demasiado seguido (rate-limit), es un no-op
+ * silencioso que igual devuelve `{ ok: true }`: al cliente no le importa.
+ */
+export async function updateReporterLocation(
+  trackingToken: string,
+  input: ReporterLocationRequest,
+  now: number = Date.now(),
+): Promise<{ ok: true } | null> {
+  const q = db();
+  const incident = await q.one<{ id: string; status: string }>(
+    'SELECT id, status FROM incidents WHERE tracking_token = ?',
+    [trackingToken],
+  );
+  if (!incident) return null;
+
+  if (['COMPLETED', 'CANCELLED', 'DUPLICATE'].includes(incident.status)) return { ok: true };
+
+  const last = lastLocationAt.get(trackingToken) ?? 0;
+  if (now - last < REPORTER_LOCATION_MIN_INTERVAL_MS) return { ok: true };
+  lastLocationAt.set(trackingToken, now);
+
+  await q.run(
+    `UPDATE incidents
+        SET reporter_lat = ?, reporter_lng = ?, reporter_accuracy_m = ?, reporter_location_at = ?
+      WHERE id = ?`,
+    [input.lat, input.lng, input.accuracyM ?? null, now, incident.id],
+  );
+  return { ok: true };
 }

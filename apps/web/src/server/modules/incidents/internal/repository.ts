@@ -22,6 +22,13 @@ export function mapIncident(row: Row): Incident {
     requiredCapability: row.required_capability, zoneId: row.zone_id,
     primaryReportId: row.primary_report_id, mergedIntoIncidentId: row.merged_into_incident_id,
     createdAt: row.created_at, closedAt: row.closed_at,
+    // Columnas aditivas (026/027). Pueden faltar en filas de tests con mocks.
+    aiSummary: row.ai_summary ?? null,
+    aiSummaryUpdatedAt: row.ai_summary_updated_at ?? null,
+    reporterLat: row.reporter_lat ?? null,
+    reporterLng: row.reporter_lng ?? null,
+    reporterLocationAt: row.reporter_location_at ?? null,
+    suspectedAbuse: row.suspected_abuse ?? false,
   });
 }
 

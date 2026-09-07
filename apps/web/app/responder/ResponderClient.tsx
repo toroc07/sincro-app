@@ -31,10 +31,23 @@ const GPS_LABELS: Record<GpsState, string> = {
   denied: 'GPS sin permiso', unsupported: 'GPS no disponible',
 };
 
+type ReporterContact = {
+  contact: string;
+  name: string | null;
+  snippet: string | null;
+  at: number;
+  isPrimary: boolean;
+};
+
+type ReporterLocation = { lat: number; lng: number; at: number };
+
 interface ResponderCurrent {
   incident: Incident | null;
   reportSummary: string | null;
   reporterContact: string | null;
+  reporters: ReporterContact[];
+  aiSummary: string | null;
+  reporterLocation: ReporterLocation | null;
   assignment: Assignment | null;
   assignedVehicle: VehicleWithLocation | null;
   staff?: { name: string; role: string } | null;
@@ -43,9 +56,17 @@ interface ResponderCurrent {
 }
 
 const INITIAL: ResponderCurrent = {
-  incident: null, reportSummary: null, reporterContact: null, assignment: null, assignedVehicle: null,
+  incident: null, reportSummary: null, reporterContact: null, reporters: [],
+  aiSummary: null, reporterLocation: null,
+  assignment: null, assignedVehicle: null,
   staff: null, activeShift: null, universalVehicleId: UNIVERSAL_VEHICLE_ID,
 };
+
+/** "hace 3 min" a partir del timestamp del reporte. */
+function minutesAgo(at: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60_000));
+  return mins < 1 ? 'hace un momento' : `hace ${mins} min`;
+}
 
 function selectCurrent(payload: unknown): ResponderCurrent {
   if (!payload || typeof payload !== 'object') throw new Error('Respuesta de despacho inválida');
@@ -65,7 +86,7 @@ export function ResponderClient() {
     topics: ['incident:created', 'incident:merged', 'incident:updated', 'assignment:updated', 'vehicle:location'],
     select: selectCurrent,
   });
-  const { incident, reportSummary, reporterContact, assignment, assignedVehicle, staff, activeShift } = live.data;
+  const { incident, reportSummary, reporterContact, reporters, aiSummary, reporterLocation, assignment, assignedVehicle, staff, activeShift } = live.data;
   const vehicleId = live.data.universalVehicleId ?? UNIVERSAL_VEHICLE_ID;
   const tracking = useVehicleTracking(vehicleId, true);
   const [busy, setBusy] = useState(false);
@@ -254,8 +275,10 @@ export function ResponderClient() {
             <LiveRouteMap
               vehicle={vehiclePoint}
               destination={{ lat: incident.lat, lng: incident.lng }}
+              reporter={reporterLocation ? { lat: reporterLocation.lat, lng: reporterLocation.lng } : null}
               vehicleLabel="Tu ambulancia"
               destinationLabel={`Emergencia ${incident.code}`}
+              reporterLabel="Última posición reportada · sin verificar"
               onRoute={setRoute}
               height={264}
             />
@@ -286,6 +309,20 @@ export function ResponderClient() {
                 {incident.address ?? 'Ubicación GPS del incidente'}
               </p>
               <p className="mt-2 text-sm font-semibold text-content-secondary">{incident.patientCount} paciente(s)</p>
+              {incident.suspectedAbuse && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-bold text-warn">
+                  <AlertIcon size={13} /> Origen sin verificar
+                </p>
+              )}
+              {/* Síntesis de la central: junta lo que dijeron TODOS los testigos,
+                  con procedencia. Solo aparece si hubo motor de IA. */}
+              {aiSummary && (
+                <div className="mt-3 rounded-xl border border-info/25 bg-info-soft p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[.12em] text-info">Resumen de la central</p>
+                  <p className="mt-1 text-sm leading-relaxed text-content-secondary">{aiSummary}</p>
+                  <p className="mt-1.5 text-[10px] font-medium text-content-muted">Generado automáticamente · sin verificar</p>
+                </div>
+              )}
               {/* El reporte que estructuró la IA (audio-intake.ts), tal cual — es lo único operativo que ve el responder. */}
               {reportSummary && (
                 <p className="mt-3 rounded-xl bg-surface-overlay p-3 text-sm italic leading-relaxed text-content-secondary">
@@ -302,7 +339,7 @@ export function ResponderClient() {
           </section>
 
           <div className="mt-auto flex flex-col gap-3 pt-5">
-            <div className="grid grid-cols-2 gap-3">
+            <div className={reporters.length > 1 ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
               {/* Navegación paso a paso: el mapa da contexto, pero al volante
                   hace falta voz. Se delega en la app que el conductor ya usa. */}
               <a
@@ -313,14 +350,55 @@ export function ResponderClient() {
                 <LocationIcon size={19} /> Cómo llegar
               </a>
               {/* Llamar no depende de que ya haya asignación: es el contacto del
-               *  reporte, útil desde el primer segundo. */}
-              <a
-                href={reporterContact ? `tel:${reporterContact}` : undefined}
-                aria-disabled={!reporterContact}
-                className={`pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl border border-edge-strong font-bold ${reporterContact ? 'text-info' : 'pointer-events-none text-content-muted opacity-50'}`}
-              >
-                <PhoneIcon size={19} /> Llamar
-              </a>
+               *  reporte, útil desde el primer segundo. Una emergencia con varios
+               *  testigos trae varios números — se listan todos, el del reporte
+               *  primario marcado. */}
+              {reporters.length <= 1 ? (
+                (() => {
+                  // El contacto puede venir solo en un reporte fusionado (no en
+                  // el resumen del primario): se cae al del array antes de
+                  // dejar el botón gris.
+                  const primaryTel = reporterContact ?? reporters[0]?.contact ?? null;
+                  return (
+                    <a
+                      href={primaryTel ? `tel:${primaryTel}` : undefined}
+                      aria-disabled={!primaryTel}
+                      className={`pressable flex min-h-touch-lg items-center justify-center gap-2 rounded-xl border border-edge-strong font-bold ${primaryTel ? 'text-info' : 'pointer-events-none text-content-muted opacity-50'}`}
+                    >
+                      <PhoneIcon size={19} /> Llamar
+                    </a>
+                  );
+                })()
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {reporters.map((reporter) => (
+                    <li key={reporter.contact}>
+                      <a
+                        href={`tel:${reporter.contact}`}
+                        className={`pressable flex min-h-touch-lg flex-col justify-center gap-0.5 rounded-xl border px-3 py-2 font-bold text-info ${reporter.isPrimary ? 'border-emergency bg-emergency-soft' : 'border-edge-strong'}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <PhoneIcon size={17} className="shrink-0" />
+                          {reporter.name ?? 'Reportante'}
+                          {reporter.isPrimary && (
+                            <span className="rounded bg-emergency px-1.5 py-0.5 text-[10px] font-bold text-on-emergency">
+                              Principal
+                            </span>
+                          )}
+                          <span className="ml-auto text-[11px] font-semibold text-content-muted">
+                            {minutesAgo(reporter.at)}
+                          </span>
+                        </span>
+                        {reporter.snippet && (
+                          <span className="truncate text-[11px] font-medium text-content-secondary">
+                            {reporter.snippet}
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {assignment && (
