@@ -1,6 +1,20 @@
 # HANDOFF — Rediseño del flujo reporte → despacho → seguimiento
 
-Fecha: 2026-09-06. Rama `main`, **sin commit** (todo en working tree).
+Fecha: 2026-09-06. Rama `feat/rediseno-flujo-emergencia` (desde `efb08fd`),
+**commiteada por fases**, sin push. `git log efb08fd..HEAD`:
+
+```
+merge: incorpora origin/main (d15bccf)   ← merge -s ours, contenido ya aplicado
+docs: HANDOFF
+feat(auth): Fase E — ciudadano passwordless
+feat(dispatch): Fases A, F — compuerta de despacho, rate-limit, flag de abuso
+feat(incidents): Fases B, C, D, G — multi-reportero, resumen IA, ubicación viva, guarda de-escalada
+feat(contracts): campos aditivos
+chore(db): migraciones 025–031
+```
+
+Nota: el borrado de `backend/routing/test_route.py` (archivo vacío, de d15bccf)
+quedó en el commit `chore(db)` por estar ya en el índice — inocuo.
 
 ## Qué se hizo
 
@@ -157,12 +171,10 @@ best-effort, no un límite duro (mismo modelo que el bus de eventos).
   retenidos en `OPEN` con `needs_review`/candidatos listos). El endpoint existe
   (`POST /api/incidents/[id]/dispatch`); falta la pantalla que lo llama.
 - **`GROQ_API_KEY`** para que el resumen IA (Fase C) haga algo.
-- **Commit**: nada está commiteado. El working tree tiene: fases A–G + fixes A–G +
-  el contenido de `origin/main` (`d15bccf`) ya aplicado a mano. HEAD sigue en `efb08fd`,
-  1 commit por detrás de `origin/main`. Al commitear: como `git commit` deja el árbol
-  = d15bccf + nuestros cambios, un `git merge -s ours origin/main` posterior (o rebasar)
-  cierra el desfase sin re-aplicar nada. Sugerencia de commits: un commit por fase
-  (A+G, B, C, D, E, F) o dos (compuerta+multicontacto, enriquecimiento+identidad).
+- **Push / PR**: la rama `feat/rediseno-flujo-emergencia` no tiene push. Está
+  reconciliada con `origin/main` (merge -s ours), lista para `git push -u` + PR.
+- **Verificación final sobre HEAD**: typecheck ✓ · check:layers ✓ (175) ·
+  npm test ✓ (77 web + 42 audio) · build ✓ (12/12 páginas).
 - Migración de datos: `031` normaliza `citizens.phone`. Nuevas migraciones 025–031,
   todas aplicadas en local (`db:migrate` dice "sin pendientes").
 - Migración de datos reales: `citizens` viejos con email/password quedan intactos y
