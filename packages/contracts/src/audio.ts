@@ -141,6 +141,11 @@ export const zTrackingResponse = z.object({
    *  aviso sirvio aunque no generara una ambulancia propia. */
   reportCount: z.number().int(),
 
+  /** Aditivo: ¿ya hay un teléfono de contacto guardado para este incidente?
+   *  La pantalla de seguimiento lo usa para decidir si insiste con el card de
+   *  "agrega tu número". */
+  reporterContactOnFile: z.boolean().optional(),
+
   /** Aditivo-opcional (migración 027): posición viva del ciudadano que reporta,
    *  solo si es fresca (<60s); null en cualquier otro caso. La pinta el mapa del
    *  panel de ambulancia y también el del propio ciudadano ("te vemos aquí"). */
@@ -164,6 +169,13 @@ export const zReporterLocationRequest = z.object({
   message: 'Coordenada fuera del área de operación de Cartagena (¿lat/lng invertidos?)',
 });
 export type ReporterLocationRequest = z.infer<typeof zReporterLocationRequest>;
+
+/** POST /api/track/:token/contact — el reporter agrega su celular DESPUÉS de
+ *  enviar el reporte, para que la tripulación pueda llamarlo. Aditivo. */
+export const zAddReporterContactRequest = z.object({
+  phone: z.string().trim().min(7, 'Número demasiado corto').max(120),
+});
+export type AddReporterContactRequest = z.infer<typeof zAddReporterContactRequest>;
 
 /** Mapea el estado interno del incidente al paso que ve el ciudadano. */
 export function toTrackingStep(incidentStatus: string): TrackingStep {

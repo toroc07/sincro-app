@@ -436,5 +436,5 @@ export async function listReporterContacts(
 export { areIncidentTypesCompatible, decideDeduplication } from './internal/dedup';
 export { applyTriage } from './internal/triage';
 export { confirmIncidentType, createIncidentFromAudio } from './internal/audio-intake';
-export { getTracking, updateReporterLocation } from './internal/tracking';
+export { attachReporterContact, getTracking, updateReporterLocation } from './internal/tracking';
 export { buildIncidentSummary, regenerateIncidentSummary } from './internal/summary';

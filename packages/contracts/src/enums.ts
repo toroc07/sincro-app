@@ -86,6 +86,9 @@ export const INCIDENT_EVENT_TYPE = [
   // Aditivo (mismo patrón que 'REPORT_MERGED'): el resumen consolidado por IA
   // se (re)generó tras un reporte nuevo.
   'INCIDENT_ENRICHED',
+  // Aditivo (mismo patrón): el reporter agregó su teléfono de contacto desde la
+  // pantalla de seguimiento, después de enviar el reporte.
+  'REPORTER_CONTACT_ADDED',
 ] as const;
 export type IncidentEventType = (typeof INCIDENT_EVENT_TYPE)[number];
 
