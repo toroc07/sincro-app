@@ -9,7 +9,7 @@ médicos. Es la capa de coordinación que hoy falta.
 
 ---
 
-> 📚 **Documentación Técnica Detallada**: Consulta la carpeta [`/docs`](./docs/README.md) para ver la arquitectura del Centro de Mando (B2G), el sistema de guardias de paramédicos, el flujo de reporte anónimo con captura de celular y la configuración de base de datos.
+> > **Documentación Técnica Detallada**: Consulta la carpeta [`/docs`](./docs/README.md) para ver la arquitectura del Centro de Mando (B2G), el sistema de guardias de paramédicos, el flujo de reporte anónimo con captura de celular y la configuración de base de datos.
 
 ---
 

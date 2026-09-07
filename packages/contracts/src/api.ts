@@ -200,6 +200,7 @@ export const zApiError = z.object({
       'VEHICLE_UNAVAILABLE',     // 409 — perdiste la carrera de asignación
       'ASSIGNMENT_EXPIRED',      // 409
       'NO_RESOURCE',
+      'UNAUTHORIZED',            // 401 — login: identificador o contraseña inválidos (genérico, anti-enumeración)
       'FORBIDDEN',
       'INTERNAL',
     ]),

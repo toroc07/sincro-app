@@ -67,7 +67,7 @@ describe.skipIf(!isLocalPostgres())('ciudadano passwordless', () => {
     );
 
     await expect(loginCitizen('3025554444')).rejects.toMatchObject({ status: 403 });
-    await expect(loginCitizen('3025554444', 'mala')).rejects.toMatchObject({ status: 403 });
+    await expect(loginCitizen('3025554444', 'mala')).rejects.toMatchObject({ status: 401 });
     expect(await loginCitizen('3025554444', 'secreto123')).toMatchObject({ id, name: 'Cuenta Vieja' });
   });
 

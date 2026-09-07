@@ -78,7 +78,9 @@ export async function loginCitizen(identifier: string, password?: string): Promi
       throw new HttpError(403, 'FORBIDDEN', 'Esta cuenta tiene contraseña. Ingrésala para continuar.');
     }
     if (!verifyPassword(password, citizen.password_hash)) {
-      throw new HttpError(403, 'FORBIDDEN', 'Contraseña incorrecta.');
+      // Genérico y 401, igual que el login de staff: no confirmar si el fallo
+      // fue el número o la contraseña.
+      throw new HttpError(401, 'UNAUTHORIZED', 'Teléfono/correo o contraseña incorrectos.');
     }
   }
   return toSession(citizen);
