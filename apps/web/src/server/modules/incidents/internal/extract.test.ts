@@ -39,6 +39,8 @@ describe('extractFromTranscript — tipos (reglas base)', () => {
     ['Quedó con el brazo fracturado', 'TRAUMA'],
     ['Tiene quemaduras graves en el brazo', 'TRAUMA'],
     ['Se quemó con aceite hirviendo', 'TRAUMA'],
+    ['Está toda quemada del lado izquierdo', 'TRAUMA'],
+    ['Se cortó la mano con un cuchillo', 'TRAUMA'],
     ['Unos tipos lo golpearon entre varios', 'TRAUMA'],
     ['Se desmayó de un momento a otro', 'UNCONSCIOUS'],
   ] as const)('flexiones: %j => %s', (text, expected) => {
@@ -46,13 +48,35 @@ describe('extractFromTranscript — tipos (reglas base)', () => {
   });
 
   it.each([
-    // Anti-casos: quitar el `\b` no debe sobre-clasificar habla cotidiana.
+    // Recall de dolor torácico: el acotado no puede tragarse el fraseo real.
+    ['tiene un dolor bien fuerte en la mitad del pecho', 'CARDIAC'],
+    ['un dolor que le agarra desde el brazo hasta el pecho', 'CARDIAC'],
+    ['siente una opresion muy fuerte aqui en todo el pecho', 'CARDIAC'],
+    ['el pecho, dice que le duele muchisimo', 'CARDIAC'],
+  ] as const)('dolor torácico: %j => %s', (text, expected) => {
+    expect(extractFromTranscript(text).suggestedType).toBe(expected);
+  });
+
+  it.each([
+    // Anti-casos: quitar el `\b` / las flexiones no deben sobre-clasificar
+    // habla cotidiana de Cartagena.
     'Eso que dices es un disparate',
     'El piso del andén quedó todo disparejo',
     'La vía está cortada por un árbol caído, no pasa nadie',
     'Hay un carro quemado abandonado en la mitad de la vía',
+    'Se cortó la luz en todo el barrio',
+    'Me cortaron la llamada y no pude avisar',
+    'Se quemó el transformador de la esquina',
+    'Se quemó la comida y hay humo en la casa',
   ])('anti-flexión: %j NO es TRAUMA', (text) => {
     expect(extractFromTranscript(text).suggestedType).not.toBe('TRAUMA');
+  });
+
+  it('dolor en otra parte del cuerpo Y roce en el pecho NO es CARDIAC (frontera de cláusula)', () => {
+    const out = extractFromTranscript(
+      'se cayo de la moto, tiene un dolor horrible en la pierna y raspones en el pecho',
+    );
+    expect(out.suggestedType).not.toBe('CARDIAC');
   });
 
   it.each([

@@ -54,10 +54,12 @@ const TYPE_RULES: readonly TypeRule[] = [
     type: 'CARDIAC',
     patterns: [
       /\b(infarto|paro cardiaco|ataque al corazon|del corazon)\b/,
-      // Ventana corta (0-4 palabras): "dolor en el pecho", no "dolor en la
-      // pierna y raspones en el pecho".
-      /\b(dolor|duele|opresion|aprieta|apretando|apreta)\b(?:\s+\S+){0,4}\s+(en (el |la )?)?pecho\b/,
-      /\bpecho\b(?:\s+\S+){0,4}\s+(le |me )?(aprieta|duele)\b/,
+      // Corta en la frontera de clausula (coma / "y" / punto): "dolor ... hasta
+      // el pecho" (irradiado) SI, "dolor en la pierna y raspones en el pecho"
+      // NO. El sobre-triaje es el error tolerable en EMS; el sub-triaje de un
+      // P1 no — por eso NO se acota por distancia.
+      /\b(dolor|duele|opresion|aprieta|apretando|apreta)\b(?:\s+(?!y\b)[^\s,.;]+)*?\s+(en (el |la )?)?pecho\b/,
+      /\bpecho\b.*\b(dolor|duele|aprieta|apretando)\b/,
       // Costeño: "le dio algo en el pecho", "se agarra el pecho". Ventana corta
       // (0-4 palabras): no unir "pecho" con un "algo"/"agarró" de otra frase.
       /\ble dio algo\b(?:\s+\S+){0,4}\s+pecho\b/,
@@ -109,13 +111,15 @@ const TYPE_RULES: readonly TypeRule[] = [
       // "fracturado", "golpearon"). Patrones SIN ñ: `normalize()` descompone la
       // ñ y le quita la tilde (queda "n").
       /\b(apunal|punalad|balaz|herid|fractur|golpe)/,
-      // Flexiones explicitas: "dispar" a secas matchea "disparate"/"disparejo";
-      // "cortad"/"quemad" a secas matchean "via cortada"/"carro quemado".
+      // Flexiones explicitas: "dispar" a secas matchea "disparate"/"disparejo".
       /\bdispar(o|os|a|an|aron|amos|aban|ando|aran|ado|ada|ados|adas|en)\b/,
-      /\b(le|se|lo|me|te|nos) cort(o|aron|aba)\b/,
-      /\b(corte profundo|cortada profunda|herida cortante)\b/,
+      // "corto"/"quemo" exigen NO ser infraestructura: "se corto la luz", "se
+      // quemo el transformador" son habla diaria en Cartagena y no son trauma.
+      /\b(le|se|lo|me|te|nos) cort(o|aron|aba)\b(?!\s+(el |la |del )?(luz|agua|internet|senal|servicio|corriente|llamada|linea|telefono|pelo|cabello|calle|via|trabajo|comida|arroz|torta|leche))/,
+      /\b(corte profundo|cortada profunda|cortada en (el |la )?(brazo|pierna|mano|dedo|cara|cuello|cabeza|frente|pie)|herida cortante)\b/,
       /\bquemadura/,
-      /\b(se|me|lo|la|te|nos) quem(o|aron)\b/,
+      /\bquemad[oa]s?\b(?:\s+\S+){0,3}\s+(la |el |todo |toda |del |de la )?(cara|cuerpo|brazo|pierna|mano|espalda|piel|lado|cuello|pecho)\b/,
+      /\b(se|me|lo|la|te|nos) quem(o|aron)\b(?!\s+(el |la )?(transformador|poste|carro|moto|monte|pasto|basura|comida|arroz|olla|motor))/,
       /\b(herida de bala|machete|punal)\b/,
       // Costeño: "lo chuzaron", "lo pincharon" (≠ "pincharon la llanta"),
       // "le metieron un cuchillo", "lo pelaron", "sangra a chorro".
