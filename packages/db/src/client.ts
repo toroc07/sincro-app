@@ -83,9 +83,10 @@ function createPool(): Pool {
 
   return new Pool({
     connectionString,
-    // Serverless: muchas instancias efimeras, cada una con pocas conexiones.
-    // Un pool grande por instancia agota el limite de conexiones del servidor.
-    max: process.env.VERCEL ? 1 : 10,
+    // Serverless (Vercel, Netlify Functions): muchas instancias efimeras, cada
+    // una con pocas conexiones. Un pool grande por instancia agota el limite de
+    // conexiones del servidor.
+    max: process.env.VERCEL || process.env.NETLIFY ? 1 : 10,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
     // Los Postgres gestionados (Neon, Vercel, Supabase) exigen TLS pero usan
