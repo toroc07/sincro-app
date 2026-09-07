@@ -1,0 +1,32 @@
+# Despliegue de la app web (@dispatch/web) en Netlify.
+#
+# El repo es un monorepo de npm workspaces: la instalacion corre en la RAIZ
+# (Netlify detecta el `package-lock.json` de arriba y resuelve @dispatch/*),
+# y el build compila solo el workspace de la web. `publish` apunta al `.next`
+# anidado; el plugin de Next deriva de ahi la raiz del sitio (apps/web).
+#
+# Los otros dos servicios (routing en Render via render.yaml, audio-service a
+# mano en Render) NO se tocan: esto solo reemplaza al hosting de Vercel.
+
+[build]
+  command = "npm run build --workspace=@dispatch/web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  # Next 15 pide >=18.18; se fija 20 LTS (el `engines` del repo exige >=20).
+  NODE_VERSION = "20"
+  # El build necesita devDependencies (next, typescript, tailwind).
+  NPM_CONFIG_PRODUCTION = "false"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Presupuesto de las funciones. El plan Free corta a los 10 s; ninguna ruta
+# del camino critico debe asumir mas (ver apps/web/app/api/keepalive/route.ts,
+# que ya no espera los ~50 s del arranque en frio de Render).
+[functions]
+  node_bundler = "esbuild"
+
+# Si el plugin no detecta el sitio (monorepo), configurar en la UI de Netlify:
+#   Site configuration -> Build & deploy -> Base directory = (vacio, raiz)
+#   Package directory = apps/web

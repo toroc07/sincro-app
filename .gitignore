@@ -51,3 +51,7 @@ apps/web/.next-ui-audit/
 .ui-audit-cdp.mjs
 .tmp-*.png
 .chrome-ui-audit-*/
+
+# Estado local de las CLIs de hosting (nunca se versiona).
+.netlify
+.vercel

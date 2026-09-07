@@ -3,33 +3,35 @@ import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-// Despertar Render en frío tarda ~50 s: con el límite por defecto de 10 s la
-// función moriría antes de recibir la respuesta y el cron vería un 504.
-export const maxDuration = 60;
+// El host serverless (Netlify Functions en Free) corta a los 10 s. Esta ruta
+// NO espera el arranque en frío de Render (~50 s): dispara el ping y sigue.
+// Abrir la conexión ya basta para que Render empiece a bootear.
+export const maxDuration = 10;
 
 /**
  * GET /api/keepalive — mantiene despiertas las piezas que se duermen.
  *
- * Las tres dependencias externas de la demo están en capas gratuitas que
- * suspenden por inactividad:
+ * Las dependencias externas de la demo están en capas gratuitas que suspenden
+ * por inactividad:
  *
  *   - audio-service (Render): duerme a los ~15 min y tarda ~50 s en despertar.
- *     Ese medio minuto cae justo cuando alguien está reportando una emergencia.
- *   - routing-service: carga 25k nodos del grafo al arrancar; despertarlo en
- *     frío deja el mapa sin ruta durante la primera consulta.
+ *   - routing-service: carga 25k nodos del grafo al arrancar.
  *   - Neon: suspende el cómputo a los pocos minutos.
  *
- * Un solo GET aquí las toca a todas. Lo llama el cron de GitHub Actions
- * (.github/workflows/keepalive.yml) cada 10 minutos, y también el navegador al
- * abrir la app — si el cron viene retrasado, el primer usuario del día calienta
- * los servicios mientras lee la pantalla, no mientras espera una ambulancia.
+ * Quien de verdad garantiza que Render no duerma es el cron de GitHub Actions
+ * (.github/workflows/keepalive.yml), que pinga `/health` de audio y routing
+ * DIRECTAMENTE cada 10 min. Esta ruta se enfoca en lo que solo puede hacerse
+ * desde dentro de la app —despertar Neon y barrer ofertas vencidas— y ademas
+ * "toca" audio/routing best-effort (timeout corto) para el navegador que la
+ * llama al abrir la app.
  *
  * Nunca falla con 5xx: un monitor que solo mira el código de estado debe ver
- * 200 mientras la app viva. El detalle por servicio va en el cuerpo.
+ * 200 mientras la app viva. El detalle por servicio va en el cuerpo; que un
+ * ping externo dé timeout es normal si el servicio estaba frío.
  */
 
-/** Deja margen para responder dentro de los 60 s de `maxDuration`. */
-const PING_TIMEOUT_MS = 45_000;
+/** Corto a propósito: no bloquea la respuesta esperando un arranque en frío. */
+const PING_TIMEOUT_MS = 3_500;
 
 interface ProbeResult {
   ok: boolean;

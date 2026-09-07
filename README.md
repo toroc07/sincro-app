@@ -66,10 +66,29 @@ servicio en el cuerpo. Para que el cron apunte a tu despliegue, define las
 variables `APP_URL`, `AUDIO_SERVICE_URL` y `ROUTING_SERVICE_URL` en
 *Settings → Secrets and variables → Actions → Variables*.
 
+### Despliegue (Netlify)
+
+La app web se despliega en **Netlify** (`netlify.toml` en la raíz). El monorepo
+instala en la raíz y compila solo `@dispatch/web`; el plugin oficial de Next
+sirve las rutas y las funciones. El routing-service y el audio-service siguen en
+Render (`render.yaml`), sin cambios.
+
+```bash
+npx netlify-cli login
+npx netlify-cli link          # o: sites:create --name sincro-app
+npx netlify-cli deploy --build --prod
+```
+
+Variables de entorno de producción (Netlify → Site configuration → Environment
+variables): `DATABASE_URL`, `SESSION_SECRET`, `ELEVENLABS_API_KEY`,
+`AUDIO_SERVICE_URL`, `NEXT_PUBLIC_AUDIO_SERVICE_URL`, `ROUTING_SERVICE_URL`,
+`DEMO_MODE`. Opcionales: `GROQ_API_KEY`, `OPENAI_API_KEY`,
+`NEXT_PUBLIC_MAP_TILES_URL`.
+
 ### Base de datos
 
-Necesitas un PostgreSQL. Opciones: **Vercel Postgres** (Storage → Create),
-[Neon](https://neon.tech) en tier gratuito, o uno local.
+Necesitas un PostgreSQL. Opciones: [Neon](https://neon.tech) en tier gratuito,
+[Supabase](https://supabase.com), o uno local.
 Pon la connection string en `DATABASE_URL` dentro de `.env.local`.
 
 > `.env.local` está en `.gitignore`. **Nunca subas credenciales al repo.**
