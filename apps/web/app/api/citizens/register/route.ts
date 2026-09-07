@@ -14,9 +14,9 @@ async function readJson(request: Request): Promise<unknown> {
 }
 
 /**
- * POST /api/citizens/register — nombre + correo + teléfono, sin contraseña.
- * El teléfono es lo que permite al responder llamar al ciudadano si un
- * reporte no trae suficiente información (ver ResponderClient).
+ * POST /api/citizens/register — nombre + teléfono, nada más (passwordless).
+ * El teléfono es la identidad: registrar es un upsert por número, así que
+ * repetirlo reingresa a la misma cuenta y actualiza el nombre.
  */
 export async function POST(request: Request): Promise<Response> {
   try {

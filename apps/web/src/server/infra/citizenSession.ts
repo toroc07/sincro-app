@@ -36,8 +36,11 @@ export function verifyCitizenSession(token: string | undefined): CitizenSession 
   try {
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Partial<CitizenSession>;
     if (typeof parsed.id !== 'string' || typeof parsed.name !== 'string'
-      || typeof parsed.email !== 'string' || typeof parsed.phone !== 'string') return null;
-    return { id: parsed.id, name: parsed.name, email: parsed.email, phone: parsed.phone };
+      || typeof parsed.phone !== 'string') return null;
+    // `email` es opcional (cuentas passwordless nuevas no lo traen); si viene,
+    // tiene que ser string.
+    if (parsed.email != null && typeof parsed.email !== 'string') return null;
+    return { id: parsed.id, name: parsed.name, email: parsed.email ?? null, phone: parsed.phone };
   } catch {
     return null;
   }

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BrandLockup, Button } from '@/src/components/ui';
-import { ArrowLeftIcon, ArrowRightIcon, LocationIcon, PhoneIcon, SosIcon } from '@/src/components/ui/icons';
+import { ArrowLeftIcon, LocationIcon, PhoneIcon, SosIcon } from '@/src/components/ui/icons';
 
 interface ReportHistory {
   id: string;
@@ -14,7 +14,6 @@ interface ReportHistory {
   status: string;
   address: string | null;
   createdAt: number;
-  trackingToken: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -107,7 +106,11 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-content truncate">{citizen.name}</h1>
-            <p className="text-xs text-content-secondary truncate">{citizen.email}</p>
+            {citizen.email ? (
+              <p className="text-xs text-content-secondary truncate">{citizen.email}</p>
+            ) : (
+              <p className="text-xs text-content-secondary truncate">{citizen.phone}</p>
+            )}
           </div>
         </div>
 
@@ -215,14 +218,6 @@ export function ProfileClient({ citizen }: { citizen: CitizenSession }) {
 
                   <div className="mt-3 pt-2.5 border-t border-edge-subtle flex items-center justify-between text-[11px] text-content-muted">
                     <span>{dateStr}</span>
-                    {report.trackingToken && (
-                      <Link
-                        href={`/track/${report.trackingToken}`}
-                        className="font-bold text-emergency hover:underline"
-                      >
-                        Ver seguimiento <ArrowRightIcon size={12} />
-                      </Link>
-                    )}
                   </div>
                 </div>
               );
