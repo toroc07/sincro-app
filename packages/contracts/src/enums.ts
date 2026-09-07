@@ -83,6 +83,9 @@ export const INCIDENT_EVENT_TYPE = [
   'ASSIGNMENT_EXPIRED', 'VEHICLE_EN_ROUTE', 'ARRIVED_ON_SCENE',
   'TRANSPORT_STARTED', 'INCIDENT_COMPLETED', 'INCIDENT_CANCELLED',
   'MANUAL_OVERRIDE', 'NO_RESOURCE_AVAILABLE',
+  // Aditivo (mismo patrón que 'REPORT_MERGED'): el resumen consolidado por IA
+  // se (re)generó tras un reporte nuevo.
+  'INCIDENT_ENRICHED',
 ] as const;
 export type IncidentEventType = (typeof INCIDENT_EVENT_TYPE)[number];
 

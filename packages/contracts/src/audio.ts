@@ -12,6 +12,7 @@
  */
 
 import { z } from 'zod';
+import { isWithinCartagena } from './geo.js';
 import { zCartagenaPoint, zIncidentType, zId, zTimestamp } from './models.js';
 
 // ─── ENTRADA POR AUDIO ──────────────────────────────────────────────────────
@@ -140,9 +141,29 @@ export const zTrackingResponse = z.object({
    *  aviso sirvio aunque no generara una ambulancia propia. */
   reportCount: z.number().int(),
 
+  /** Aditivo-opcional (migración 027): posición viva del ciudadano que reporta,
+   *  solo si es fresca (<60s); null en cualquier otro caso. La pinta el mapa del
+   *  panel de ambulancia y también el del propio ciudadano ("te vemos aquí"). */
+  reporterLocation: z.object({
+    lat: z.number(),
+    lng: z.number(),
+    at: zTimestamp,
+  }).nullable().optional(),
+
   serverTime: zTimestamp,
 });
 export type TrackingResponse = z.infer<typeof zTrackingResponse>;
+
+/** POST /api/track/:token/location — el dispositivo del ciudadano transmite su
+ *  GPS mientras espera la ambulancia. Aditivo. */
+export const zReporterLocationRequest = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  accuracyM: z.number().nonnegative().optional(),
+}).refine((p) => isWithinCartagena(p), {
+  message: 'Coordenada fuera del área de operación de Cartagena (¿lat/lng invertidos?)',
+});
+export type ReporterLocationRequest = z.infer<typeof zReporterLocationRequest>;
 
 /** Mapea el estado interno del incidente al paso que ve el ciudadano. */
 export function toTrackingStep(incidentStatus: string): TrackingStep {

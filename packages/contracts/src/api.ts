@@ -98,6 +98,9 @@ export const zUpdateIncidentRequest = z.object({
   requiredCapability: zCapabilityLevel.optional(),
   priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),   // override del operador
   cancel: z.object({ reason: z.string() }).optional(),
+  // Aditivo: el operador retira la marca de origen sospechoso (Fase F). Un
+  // incidente ya revisado por un humano puede auto-despacharse de nuevo.
+  clearAbuse: z.boolean().optional(),
 });
 
 // ─── VEHÍCULOS ──────────────────────────────────────────────────────────────
