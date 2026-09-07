@@ -1,6 +1,7 @@
 import { zIncidentType } from '@dispatch/contracts';
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
 import { confirmIncidentType, getTracking } from '@/src/server/modules/incidents';
+import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,6 +22,11 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { token } = await params;
+    // El dispositivo del ciudadano pollea esta ruta cada 4s: dispara el barrido
+    // (caducar ofertas, promover retenidos) pero SIN await — la pantalla del
+    // ciudadano no debe esperar a ese trabajo; su siguiente poll lo recoge. El
+    // latido fiable (con await) son /responder/current y /keepalive.
+    void sweepExpiredOffers().catch(() => {});
     const tracking = await getTracking(token);
     if (!tracking) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
 

@@ -1,4 +1,5 @@
 import {
+  ACTIVE_ASSIGNMENT_STATUSES,
   STRATEGY_VERSION,
   assertIncidentTransition,
   type Assignment,
@@ -141,6 +142,24 @@ export async function executeDispatch(
 
   let assignment: Assignment | null = null;
   if (!chosen) {
+    // Un segundo calculo concurrente puede no encontrar unidad libre porque la
+    // primera corrida ya reservo una. Un incidente con oferta viva NUNCA debe
+    // caer a NO_RESOURCE por eso: se devuelve la respuesta sin tocar el estado.
+    const activePlaceholders = ACTIVE_ASSIGNMENT_STATUSES.map(() => '?').join(',');
+    const activeAssignment = await q.one<{ n: number }>(
+      `SELECT COUNT(*)::INTEGER AS n FROM assignments
+        WHERE incident_id = ? AND status IN (${activePlaceholders})`,
+      [incidentId, ...ACTIVE_ASSIGNMENT_STATUSES],
+    );
+    if ((activeAssignment?.n ?? 0) > 0) {
+      return {
+        dispatchRunId: runId, incidentId, strategyVersion: STRATEGY_VERSION,
+        candidates: calculated.candidates, excluded: calculated.excluded,
+        recommendedVehicleId: null,
+        recommendationRationale: calculated.recommendationRationale,
+        assignment: null, durationMs, computedAt: now,
+      };
+    }
     assertIncidentTransition(incident.status, 'NO_RESOURCE');
     const operation = async (t: Queryable): Promise<void> => {
       await t.run(`UPDATE incidents SET status = 'NO_RESOURCE' WHERE id = ?`, [incidentId]);

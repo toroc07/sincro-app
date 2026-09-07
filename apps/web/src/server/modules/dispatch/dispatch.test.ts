@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { totalScore } from '@dispatch/contracts';
 import { isLocalPostgres } from '../../test-helpers';
 import { db, type Queryable } from '@dispatch/db';
 import { dropAll, runMigrations } from '@dispatch/db/migrations';
-import { runDispatch, assignVehicle, expireStaleOffers } from './index';
+import { runDispatch, assignVehicle, expireStaleOffers, promoteHeldDispatches } from './index';
+import { createIncidentFromReport } from '../incidents';
 import { calculateCandidates } from './internal/candidates';
 import { scoreCandidate } from './internal/scoring';
 import type { IncidentRow, VehicleRow, ZoneRow } from './internal/types';
@@ -57,6 +58,14 @@ describe.skipIf(!isLocalPostgres())('dispatch engine', () => {
 
   beforeEach(async () => {
     q = await resetDatabase();
+  });
+
+  // Deja el esquema recién migrado y vacío: estos tests siembran vehículos con
+  // callsigns fijos (A01, A02…) que chocarían con el seed del e2e si corriera
+  // después. El orden entre archivos lo decide vitest y no es estable.
+  afterAll(async () => {
+    await dropAll();
+    await runMigrations();
   });
 
   it('permite exactamente un ganador entre 50 intentos por el mismo vehículo', async () => {
@@ -114,6 +123,92 @@ describe.skipIf(!isLocalPostgres())('dispatch engine', () => {
     ];
     const result = calculateCandidates(incident, vehicles, [zone], 1_000_000);
     expect(result.excluded.map((candidate) => candidate.excludedReason)).toEqual(['INSUFFICIENT_CAPABILITY', 'LOCATION_TOO_STALE']);
+  });
+
+  it('promueve el despacho retenido en RECOMMEND cuando vence el SLA', async () => {
+    const now = 5_000_000;
+    await addZone(q, 'z', 'Centro', 1);
+    await addVehicle(q, { id: 'v1', callsign: 'A01', zone: 'z', lat: 10.4006, lng: -75.5560, recordedAt: now });
+
+    const { incident } = await createIncidentFromReport({
+      type: 'CARDIAC', point: { lat: 10.4006, lng: -75.5560 }, accuracyM: 20,
+      patientCount: 1, source: 'WEB',
+    }, { now });
+
+    // RECOMMEND automático (como la ruta de audio/texto): candidatos
+    // persistidos, ninguna unidad reservada.
+    const recommended = await runDispatch(incident.id, { mode: 'RECOMMEND' }, { now, triggeredBy: 'AUTO' });
+    expect(recommended.assignment).toBeNull();
+    expect(recommended.recommendedVehicleId).toBe('v1');
+    expect(await q.one(`SELECT COUNT(*)::INTEGER AS count FROM assignments`)).toEqual({ count: 0 });
+    expect(await q.one(`SELECT status FROM incidents WHERE id = ?`, [incident.id])).toEqual({ status: 'OPEN' });
+
+    // Antes del SLA no promueve nada.
+    expect(await promoteHeldDispatches({ now: now + 10_000 })).toEqual([]);
+
+    // Pasado el SLA (45 s) la recomendación se vuelve asignación real.
+    const promoted = await promoteHeldDispatches({ now: now + 46_000 });
+    expect(promoted).toEqual([{ incidentId: incident.id, assignmentId: expect.any(String) }]);
+    expect(await q.one(`SELECT vehicle_id FROM assignments WHERE incident_id = ?`, [incident.id]))
+      .toEqual({ vehicle_id: 'v1' });
+    expect(await q.one(`SELECT status FROM incidents WHERE id = ?`, [incident.id]))
+      .toEqual({ status: 'ASSIGNING' });
+
+    // Idempotente: ya hay asignación activa, no vuelve a promover.
+    expect(await promoteHeldDispatches({ now: now + 90_000 })).toEqual([]);
+  });
+
+  it('un incidente con suspected_abuse usa el SLA largo (120s), no el de 45s', async () => {
+    const now = 7_500_000;
+    await addZone(q, 'z', 'Centro', 1);
+    await addVehicle(q, { id: 'v1', callsign: 'A01', zone: 'z', lat: 10.4006, lng: -75.5560, recordedAt: now });
+
+    const { incident } = await createIncidentFromReport({
+      type: 'CARDIAC', point: { lat: 10.4006, lng: -75.5560 }, accuracyM: 20,
+      patientCount: 1, source: 'WEB',
+    }, { now, suspectedAbuse: true });
+    await runDispatch(incident.id, { mode: 'RECOMMEND' }, { now, triggeredBy: 'AUTO' });
+
+    // A los 46s (pasa el SLA normal) NO se promueve: es origen sospechoso.
+    expect(await promoteHeldDispatches({ now: now + 46_000 })).toEqual([]);
+    expect(await q.one(`SELECT status FROM incidents WHERE id = ?`, [incident.id]))
+      .toEqual({ status: 'OPEN' });
+
+    // A los 121s sí.
+    expect(await promoteHeldDispatches({ now: now + 121_000 }))
+      .toEqual([{ incidentId: incident.id, assignmentId: expect.any(String) }]);
+    expect(await q.one(`SELECT status FROM incidents WHERE id = ?`, [incident.id]))
+      .toEqual({ status: 'ASSIGNING' });
+  });
+
+  it('un segundo despacho sobre un incidente con oferta viva no lo degrada a NO_RESOURCE', async () => {
+    // Simula la carrera barrido + confirmación del operador: dos executeDispatch
+    // sobre el mismo incidente held con una sola unidad. El primero asigna; el
+    // segundo no encuentra candidato (la unidad ya está reservada) y NO debe
+    // escribir NO_RESOURCE ni dejar el incidente sin oferta.
+    const now = 6_000_000;
+    await addZone(q, 'z', 'Centro', 1);
+    await addVehicle(q, { id: 'v1', callsign: 'A01', zone: 'z', lat: 10.4006, lng: -75.5560, recordedAt: now });
+
+    const { incident } = await createIncidentFromReport({
+      type: 'CARDIAC', point: { lat: 10.4006, lng: -75.5560 }, accuracyM: 20,
+      patientCount: 1, source: 'WEB',
+    }, { now });
+    await runDispatch(incident.id, { mode: 'RECOMMEND' }, { now, triggeredBy: 'AUTO' });
+
+    const first = await runDispatch(incident.id, { mode: 'AUTO_ASSIGN' }, { now: now + 46_000, triggeredBy: 'TIMEOUT' });
+    expect(first.assignment?.vehicleId).toBe('v1');
+
+    const second = await runDispatch(incident.id, { mode: 'AUTO_ASSIGN' }, { now: now + 47_000, triggeredBy: 'DISPATCHER' });
+    expect(second.assignment).toBeNull();
+
+    expect(await q.one(`SELECT status FROM incidents WHERE id = ?`, [incident.id]))
+      .toEqual({ status: 'ASSIGNING' });
+    expect(await q.one(`SELECT COUNT(*)::INTEGER AS count FROM assignments WHERE incident_id = ?`, [incident.id]))
+      .toEqual({ count: 1 });
+
+    // Y el barrido tampoco toca un incidente que ya tiene oferta.
+    expect(await promoteHeldDispatches({ now: now + 120_000 })).toEqual([]);
   });
 
   it('expira la oferta, libera el recurso y re-despacha excluyendo al que no respondió', async () => {
