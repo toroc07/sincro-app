@@ -63,6 +63,16 @@ export const zTranscriptionResult = z.object({
   /** Que motor produjo esto. Se persiste: si mañana cambiamos de proveedor,
    *  hay que poder saber que reportes se procesaron con cual. */
   engine: z.string(),
+  /** Aditivo: que combinacion de motores produjo la CLASIFICACION — 'rules' o
+   *  'rules+groq:<modelo>'. Las señales/conteo que van a triage() son SIEMPRE
+   *  de reglas; el LLM solo puede proponer el tipo. HOY NO se persiste: fluye
+   *  en la respuesta de la API (AudioReportResponse.transcription); persistirlo
+   *  es follow-up con migracion. */
+  classifierEngine: z.string().optional(),
+  /** Aditivo: de donde salio `suggestedType` — 'rules' (regla auditable),
+   *  'llm' (solo lo propuso el modelo — no puede pisar el `fallbackType` que
+   *  eligio el ciudadano), 'none'. */
+  typeSource: z.enum(['rules', 'llm', 'none']).optional(),
 });
 export type TranscriptionResult = z.infer<typeof zTranscriptionResult>;
 

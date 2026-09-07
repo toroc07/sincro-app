@@ -63,8 +63,15 @@ export async function createIncidentFromAudio(
     });
   }
 
+  // Orden de precedencia del tipo (§24): una regla regex auditable manda; luego
+  // el boton que pulso el ciudadano; luego un tipo que SOLO propuso el LLM
+  // (podria ser MENOS grave que el boton — LLM "OTHER" vs boton "CARDIAC");
+  // luego OTHER. Un tipo solo-LLM ademas nace con `needs_review` (su confianza
+  // se fuerza por debajo del umbral en mergeClassification).
+  const suggestedType = transcription?.suggestedType ?? null;
+  const llmOnly = transcription?.typeSource === 'llm';
   const type: IncidentType =
-    transcription?.suggestedType ?? request.fallbackType ?? UNKNOWN_TYPE;
+    (llmOnly ? null : suggestedType) ?? request.fallbackType ?? suggestedType ?? UNKNOWN_TYPE;
 
   const incidentRequest: CreateIncidentRequest = {
     type,

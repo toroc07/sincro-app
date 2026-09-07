@@ -10,7 +10,8 @@ import { readIdempotencyKey, readJson } from '../_shared';
 export const dynamic = 'force-dynamic';
 // `pg` y la transcripcion necesitan APIs de Node; el edge runtime no sirve.
 export const runtime = 'nodejs';
-// La transcripcion tiene un presupuesto de 12s; damos margen al resto.
+// Presupuestos en serie en el camino critico: transcripcion 12s + clasificador
+// LLM 3,5s + despacho. 30s deja margen.
 export const maxDuration = 30;
 
 /**

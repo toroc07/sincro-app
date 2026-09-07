@@ -41,9 +41,27 @@ export async function transcribeAudio(buffer: Buffer, mimeType: string, filename
  * Cada tipo tiene su fila de palabras clave, testeable como triage.ts.
  */
 const TYPE_KEYWORDS: Record<Exclude<IncidentType, 'OTHER'>, readonly string[]> = {
-  TRAFFIC_ACCIDENT: ['choque', 'accidente', 'atropell', 'volcó', 'volco', 'colisión', 'colision', 'moto', 'carro', 'atropello'],
-  CARDIAC: ['dolor de pecho', 'infarto', 'corazón', 'corazon', 'paro cardiaco', 'paro cardíaco'],
-  UNCONSCIOUS: ['inconsciente', 'no responde', 'desmayó', 'desmayo', 'no reacciona'],
+  TRAFFIC_ACCIDENT: [
+    'choque', 'accidente', 'atropell', 'volcó', 'volco', 'colisión', 'colision', 'moto', 'carro', 'atropello',
+    // Costeño / coloquial ("moto"/"carro" ya cubren "moto contra" y "mototaxi").
+    'se llevó por delante', 'se llevo por delante', 'buseta',
+  ],
+  CARDIAC: [
+    'dolor de pecho', 'infarto', 'corazón', 'corazon', 'paro cardiaco', 'paro cardíaco',
+    // Costeño / coloquial. `classifyAllIncidentTypes` NO normaliza tildes: se
+    // listan ambas formas.
+    'le dio algo en el pecho',
+    'se agarra el pecho', 'se agarró el pecho', 'se agarro el pecho',
+    'se cogió el pecho', 'se cogio el pecho',
+  ],
+  UNCONSCIOUS: [
+    'inconsciente', 'no responde', 'desmayó', 'desmayo', 'no reacciona',
+    // Costeño / coloquial. Sin "está botado" a secas ("el poste está botado en
+    // la vía" no es una persona) — se exige el lugar. Con y sin tilde.
+    'se privó', 'se privo', 'patatús', 'patatus',
+    'botado en el piso', 'botado en el suelo', 'botado en el anden', 'botado en el andén',
+    'no se despierta', 'se quedó tieso', 'se quedo tieso',
+  ],
   FALL: ['caída', 'caida', 'se cayó', 'se cayo', 'cayó de', 'cayo de'],
   // Incluye amputación/sangrado catastrófico — nunca debe perderse frente a
   // otro tipo detectado antes en la conversación (ver classifyAllIncidentTypes).
@@ -51,8 +69,17 @@ const TYPE_KEYWORDS: Record<Exclude<IncidentType, 'OTHER'>, readonly string[]> =
     'herida', 'herido', 'sangr', 'golpe', 'corte', 'apuñal', 'disparo', 'bala',
     'amputa', 'sin pierna', 'sin piernas', 'sin brazo', 'sin brazos',
     'perdió la pierna', 'perdió el brazo', 'le cortó', 'le cortaron',
+    // Costeño / coloquial: "lo chuzaron", "lo pincharon" (≠ "pincharon la
+    // llanta"), "le metieron un cuchillo", "lo pelaron" ('sangr' ya cubre
+    // "sangra a chorro" / "botando sangre").
+    'chuzaron', 'lo chuzo', 'me chuzo', 'lo pincharon', 'me pincharon',
+    'le metieron un cuchillo', 'lo pelaron', 'me pelaron',
   ],
-  RESPIRATORY: ['no puede respirar', 'ahog', 'asfixi', 'falta de aire', 'respiración', 'respiracion'],
+  RESPIRATORY: [
+    'no puede respirar', 'ahog', 'asfixi', 'falta de aire', 'respiración', 'respiracion',
+    // Costeño / coloquial ("se está ahogando" ya lo cubre 'ahog').
+    'no coge aire', 'no le entra el aire',
+  ],
   OBSTETRIC: ['embarazada', 'parto', 'contraccion', 'contracción', 'dando a luz'],
 };
 

@@ -11,7 +11,8 @@
  */
 
 import { LOW_CONFIDENCE_THRESHOLD, type TranscriptionResult } from '@dispatch/contracts';
-import { classificationConfidence, extractFromTranscript } from './extract.js';
+import { enrichClassification, mergeClassification } from './classify-llm.js';
+import { extractFromTranscript } from './extract.js';
 import { logger } from '../../../infra/logger.js';
 
 /** Presupuesto duro. Mas alla de esto preferimos despachar sin transcript que
@@ -119,19 +120,28 @@ export async function transcribeAudio(
         continue;
       }
 
-      // La transcripcion la hace un modelo; la ESTRUCTURACION es por reglas
-      // (extract.ts). Asi la clasificacion es auditable y determinista.
+      // La transcripcion la hace un modelo; la ESTRUCTURACION base es por reglas
+      // (extract.ts): auditable y determinista. El LLM (classify-llm.ts) solo
+      // puede proponer el TIPO; sus señales/conteo NO entran a triage().
+      // `mergeClassification` respeta §24 — las señales de reglas nunca se
+      // pierden, el tipo nunca baja de gravedad, y si el tipo lo puso solo el
+      // LLM la confianza cae para forzar confirmacion humana. Sin motor / con
+      // fallo, `llm` es null y queda todo en reglas.
       const extracted = extractFromTranscript(text);
+      const llm = await enrichClassification(text);
+      const merged = mergeClassification(extracted, llm, text);
 
       return {
         transcript: text.trim(),
         language,
-        confidence: classificationConfidence(extracted, text),
-        suggestedType: extracted.suggestedType,
-        suggestedPatientCount: extracted.suggestedPatientCount,
-        signals: extracted.signals,
+        confidence: merged.confidence,
+        suggestedType: merged.suggestedType,
+        suggestedPatientCount: merged.suggestedPatientCount,
+        signals: merged.signals,
         locationHint: extracted.locationHint,
         engine: engine.name,
+        classifierEngine: merged.classifierEngine,
+        typeSource: merged.typeSource,
       };
     } catch (error) {
       // Se intenta el siguiente motor. Un proveedor caido no debe tumbar la

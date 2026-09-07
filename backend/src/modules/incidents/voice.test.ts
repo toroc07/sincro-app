@@ -38,6 +38,47 @@ describe('classifyIncidentType', () => {
   });
 });
 
+describe('classifyIncidentType — léxico costeño / coloquial', () => {
+  it.each([
+    // Sin 'moto'/'carro'/'choque': solo la frase costeña dispara la regla.
+    ['el bus se llevó por delante al ciclista', 'TRAFFIC_ACCIDENT'],
+    ['el camión se llevo por delante a un peatón', 'TRAFFIC_ACCIDENT'],
+    ['al viejo le dio algo en el pecho', 'CARDIAC'],
+    ['se agarra el pecho y no puede ni hablar', 'CARDIAC'],
+    ['se privó ahí en plena calle', 'UNCONSCIOUS'],
+    ['a la señora le dio un patatús', 'UNCONSCIOUS'],
+    ['está botado en el piso y no se mueve', 'UNCONSCIOUS'],
+    ['el man no se despierta', 'UNCONSCIOUS'],
+    ['se quedó tieso de un momento a otro', 'UNCONSCIOUS'],
+    ['lo chuzaron en el barrio', 'TRAUMA'],
+    ['unos tipos lo pincharon', 'TRAUMA'],
+    ['le metieron un cuchillo en la pelea', 'TRAUMA'],
+    ['lo pelaron con una botella', 'TRAUMA'],
+    ['está sangra a chorro por el brazo', 'TRAUMA'],
+    ['el niño no coge aire', 'RESPIRATORY'],
+    ['no le entra el aire', 'RESPIRATORY'],
+  ] as const)('clasifica %j como %s', (text, expected) => {
+    expect(classifyIncidentType(text)).toBe(expected);
+  });
+
+  it('"guayabo" no se clasifica (es resaca, ambiguo)', () => {
+    expect(classifyIncidentType('el man está con un guayabo tremendo')).toBeNull();
+  });
+
+  it.each([
+    // Substrings demasiado laxos que se afinaron: NO deben disparar el tipo.
+    ['el poste está botado en la vía desde ayer', 'UNCONSCIOUS'],
+    ['vamos para el chuzo de la esquina a comer algo', 'TRAUMA'],
+  ] as const)('%j NO clasifica como %s', (text, notExpected) => {
+    expect(classifyAllIncidentTypes(text)).not.toContain(notExpected);
+  });
+
+  it('"pincharon la llanta" no añade TRAUMA (es mecánica, no un arma)', () => {
+    expect(classifyAllIncidentTypes('pincharon la llanta del carro en la autopista'))
+      .not.toContain('TRAUMA');
+  });
+});
+
 describe('classifyAllIncidentTypes', () => {
   it('devuelve TODOS los tipos que coinciden, no solo el primero', () => {
     const result = classifyAllIncidentTypes('está inconsciente y el bus le cortó las piernas');

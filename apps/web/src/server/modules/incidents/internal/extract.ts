@@ -45,21 +45,35 @@ const TYPE_RULES: readonly TypeRule[] = [
       /\b(atropell(o|aron|ado|ada))\b/,
       /\b(volc(o|aron|ado)|se volteo)\b/,
       /\b(moto|carro|camion|bus|taxi|vehiculo)\b.*\b(choc|estrell|accident)/,
+      // Costeño: "una moto contra un bus", "se lo llevo por delante".
+      /\b(moto|carro|camion|bus|buseta|taxi|mototaxi|vehiculo)\s+contra\b/,
+      /\bse (lo|la|los|las|me|te)\s+llevo por delante\b/,
     ],
   },
   {
     type: 'CARDIAC',
     patterns: [
       /\b(infarto|paro cardiaco|ataque al corazon|del corazon)\b/,
-      /\b(dolor|apreta|opresion)\b.*\b(pecho)\b/,
-      /\b(pecho)\b.*\b(dolor|aprieta|duele)\b/,
+      // Ventana corta (0-4 palabras): "dolor en el pecho", no "dolor en la
+      // pierna y raspones en el pecho".
+      /\b(dolor|duele|opresion|aprieta|apretando|apreta)\b(?:\s+\S+){0,4}\s+(en (el |la )?)?pecho\b/,
+      /\bpecho\b(?:\s+\S+){0,4}\s+(le |me )?(aprieta|duele)\b/,
+      // Costeño: "le dio algo en el pecho", "se agarra el pecho". Ventana corta
+      // (0-4 palabras): no unir "pecho" con un "algo"/"agarró" de otra frase.
+      /\ble dio algo\b(?:\s+\S+){0,4}\s+pecho\b/,
+      /\bse (agarr(a|o)|coge|cogio|sujeta)\b(?:\s+\S+){0,4}\s+pecho\b/,
     ],
   },
   {
     type: 'RESPIRATORY',
     patterns: [
       /\b(no puede respirar|le falta el aire|dificultad para respirar)\b/,
-      /\b(asma|asfixi|ahog(o|ando|andose)|atragant)\b/,
+      /\basma\b/,
+      // Stems: "asfixia", "asfixiando", "atragantado", "ahoga", "ahogandose".
+      /\b(asfixi|atragant|ahog)/,
+      // Costeño: "no coge aire", "no le entra el aire" ("se esta ahogando" ya
+      // lo cubre `ahog`). Frases CONTIGUAS: no unir un "no" lejano con "aire".
+      /\bno (le entra el aire|le entra aire|coge aire|coje aire|entra aire)\b/,
     ],
   },
   {
@@ -77,15 +91,38 @@ const TYPE_RULES: readonly TypeRule[] = [
   {
     type: 'UNCONSCIOUS',
     patterns: [
-      /\b(inconsciente|desmay(o|ada|ado)|no responde|perdio el conocimiento)\b/,
+      /\b(inconsciente|no responde|perdio el conocimiento)\b/,
+      /\bdesmay/,
       /\b(no reacciona|esta tirad(o|a) en el piso)\b/,
+      // Costeño: "se privo", "le dio el patatus", "esta botado en el piso".
+      /\bse privo\b/,
+      /\bpatatus\b/,
+      // "botado" exige sujeto + lugar CERCA (0-4 palabras). Sin "calle" (choca
+      // con cualquier direccion de Cartagena) y sin `.*` que una frases sueltas.
+      /\b(esta|estan|estaba|quedo|quedaron|dejaron)\s+botad[oa]s?\b(?:\s+\S+){0,4}\s+(en (el |la )?)?(piso|suelo|anden|acera)\b/,
     ],
   },
   {
     type: 'TRAUMA',
     patterns: [
-      /\b(apuñal|puñalada|balaz|dispar|herida de bala|cortad|machete)\b/,
-      /\b(golpe|golpearon|herid|fractur|quemad)\b/,
+      // Stems SIN `\b` de cierre: matchean flexiones ("apunalaron", "heridos",
+      // "fracturado", "golpearon"). Patrones SIN ñ: `normalize()` descompone la
+      // ñ y le quita la tilde (queda "n").
+      /\b(apunal|punalad|balaz|herid|fractur|golpe)/,
+      // Flexiones explicitas: "dispar" a secas matchea "disparate"/"disparejo";
+      // "cortad"/"quemad" a secas matchean "via cortada"/"carro quemado".
+      /\bdispar(o|os|a|an|aron|amos|aban|ando|aran|ado|ada|ados|adas|en)\b/,
+      /\b(le|se|lo|me|te|nos) cort(o|aron|aba)\b/,
+      /\b(corte profundo|cortada profunda|herida cortante)\b/,
+      /\bquemadura/,
+      /\b(se|me|lo|la|te|nos) quem(o|aron)\b/,
+      /\b(herida de bala|machete|punal)\b/,
+      // Costeño: "lo chuzaron", "lo pincharon" (≠ "pincharon la llanta"),
+      // "le metieron un cuchillo", "lo pelaron", "sangra a chorro".
+      /\b(chuzaron|chuzando|lo chuzo|me chuzo|lo pincharon|me pincharon|lo pincho|me pincho)\b/,
+      /\ble metieron (un |el )?(cuchillo|punal|navaja|pica)\b/,
+      /\b(lo|la|me|te|se lo|se la)\s+pelaron\b/,
+      /\b(sangra a chorro|chorro de sangre|botando (mucha )?sangre)\b/,
     ],
   },
 ];
@@ -97,15 +134,25 @@ const SIGNAL_RULES = {
     /\b(sin respiracion|no le sale el aire)\b/,
   ],
   unconscious: [
-    /\b(inconsciente|no responde|no reacciona|desmay|perdio el conocimiento)\b/,
-    /\b(esta como muert|no se mueve)\b/,
+    /\b(inconsciente|no responde|no reacciona|perdio el conocimiento)\b/,
+    /\bdesmay/,
+    /\b(esta como muert[oa]|no se mueve)\b/,
+    // Costeño: "no se despierta", "se quedo tieso".
+    /\bno (se despierta|despierta)\b/,
+    /\b(se quedo|quedo|se puso) ties[oa]\b/,
   ],
   severeBleeding: [
-    /\b(sangra mucho|mucha sangre|hemorragia|sangrando much|no para de sangrar)\b/,
+    /\b(sangra mucho|mucha sangre|hemorragia|sangrando much[oa]|no para de sangrar)\b/,
     /\b(esta lleno de sangre|perdiendo sangre)\b/,
+    // Costeño: "sangra a chorro", "botando mucha sangre", "charco de sangre".
+    // "botando sangre" a secas NO es señal (puede ser epistaxis) — solo es
+    // patron de TIPO trauma, no de hemorragia catastrofica.
+    /\b(sangra a chorro|chorro de sangre|botando mucha sangre|charco de sangre)\b/,
   ],
   trapped: [
-    /\b(atrapad|prensad|aprisionad|no puede salir|esta debajo del)\b/,
+    // Stems: "atrapado", "atrapados", "prensada", "aprisionado".
+    /\b(atrapad|prensad|aprisionad)/,
+    /\b(no puede salir|esta debajo del)\b/,
     /\b(quedo dentro del (carro|vehiculo|auto))\b/,
   ],
 } as const;
