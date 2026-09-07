@@ -119,11 +119,6 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
     }
 
     const cleanPhone = contactPhone.trim();
-    const phoneDigits = cleanPhone.replace(/\D/g, '');
-    if (!cleanPhone || phoneDigits.length < 7) {
-      setError('Por favor ingresa tu número de celular para que la tripulación de la ambulancia pueda comunicarse contigo.');
-      return;
-    }
 
     setStage('sending');
     setError(null);
@@ -144,8 +139,8 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
           point: { lat: position.lat, lng: position.lng },
           accuracyM: position.accuracyM,
           fallbackType: fallbackType ?? undefined,
-          // Teléfono de contacto directo para la ambulancia
-          reporterContact: cleanPhone,
+          // Teléfono de contacto directo para la ambulancia, si se puso ahora
+          reporterContact: cleanPhone || undefined,
         }),
       });
       if (!response.ok) {
@@ -209,34 +204,39 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
       />
 
       {/* Entrada de Celular de Contacto en la Pantalla Principal */}
-      <div className="mt-2.5 flex items-center justify-between gap-2.5 rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 shadow-sm">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <PhoneIcon size={18} className={contactPhone.replace(/\D/g, '').length >= 7 ? "text-ok shrink-0" : "text-emergency shrink-0"} />
-          <div className="min-w-0 flex-1">
-            <label htmlFor="quick-phone" className="block text-[10px] font-bold uppercase tracking-wider text-content-secondary">
-              Celular para que la ambulancia te llame
-            </label>
-            <input
-              id="quick-phone"
-              type="tel"
-              inputMode="tel"
-              value={contactPhone}
-              onChange={(e) => updatePhone(e.target.value)}
-              placeholder="Ej: 300 123 4567"
-              className="w-full bg-transparent text-sm font-bold text-content placeholder:text-content-muted placeholder:font-normal focus:outline-none"
-            />
+      <div className="mt-2.5 rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 shadow-sm">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <PhoneIcon size={18} className={contactPhone.replace(/\D/g, '').length >= 7 ? "text-ok shrink-0" : "text-content-muted shrink-0"} />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="quick-phone" className="block text-[10px] font-bold uppercase tracking-wider text-content-secondary">
+                Celular (opcional)
+              </label>
+              <input
+                id="quick-phone"
+                type="tel"
+                inputMode="tel"
+                value={contactPhone}
+                onChange={(e) => updatePhone(e.target.value)}
+                placeholder="Ej: 300 123 4567"
+                className="w-full bg-transparent text-sm font-bold text-content placeholder:text-content-muted placeholder:font-normal focus:outline-none"
+              />
+            </div>
           </div>
+          {contactPhone.replace(/\D/g, '').length >= 7 ? (
+            <span className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-ok bg-ok-soft px-2 py-0.5 rounded-full">
+              <CheckIcon size={13} />
+              Listo
+            </span>
+          ) : (
+            <span className="shrink-0 text-[10px] font-extrabold text-content-secondary bg-surface-overlay px-2 py-0.5 rounded-full">
+              Opcional
+            </span>
+          )}
         </div>
-        {contactPhone.replace(/\D/g, '').length >= 7 ? (
-          <span className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-ok bg-ok-soft px-2 py-0.5 rounded-full">
-            <CheckIcon size={13} />
-            Listo
-          </span>
-        ) : (
-          <span className="shrink-0 text-[10px] font-extrabold text-emergency bg-emergency-soft px-2 py-0.5 rounded-full">
-            Requerido
-          </span>
-        )}
+        <p className="mt-1.5 text-[11px] text-content-secondary">
+          Si no lo pones ahora, te lo pediremos en la pantalla de seguimiento.
+        </p>
       </div>
 
       {locationPicker && (
@@ -374,23 +374,25 @@ function ReviewPanel({
         })}
       </div>
 
-      {/* Celular de contacto para que el paramédico pueda llamar */}
-      <div className={`mt-4 rounded-xl border p-3.5 transition-all ${
-        !hasValidPhone
-          ? 'border-emergency/60 bg-emergency-soft/30 ring-1 ring-emergency/30'
-          : 'border-edge-subtle bg-surface-raised'
-      }`}>
+      {/* Celular de contacto opcional para que la tripulación pueda llamar */}
+      <div className="mt-4 rounded-xl border border-edge-subtle bg-surface-raised p-3.5">
         <label htmlFor="review-phone" className="flex items-center justify-between text-xs font-bold text-content uppercase tracking-wider">
           <span className="flex items-center gap-1.5">
-            <PhoneIcon size={15} className="text-emergency" />
+            <PhoneIcon size={15} className="text-content-muted" />
             <span>Celular de contacto para la ambulancia</span>
           </span>
-          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${hasValidPhone ? 'bg-ok-soft text-ok' : 'bg-emergency-soft text-emergency'}`}>
-            <span className="inline-flex items-center gap-1"><CheckIcon size={12} /> LISTO</span>
-          </span>
+          {hasValidPhone ? (
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-ok-soft text-ok">
+              <span className="inline-flex items-center gap-1"><CheckIcon size={12} /> LISTO</span>
+            </span>
+          ) : (
+            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-surface-overlay text-content-secondary">
+              Opcional
+            </span>
+          )}
         </label>
         <p className="mt-1 text-[11px] text-content-secondary">
-          La tripulación médica te llamará a este número para confirmar la llegada o si necesita indicaciones de cómo entrar.
+          Opcional. Si lo agregas, la tripulación puede llamarte para confirmar la llegada o cómo entrar. También puedes agregarlo después.
         </p>
         <input
           id="review-phone"

@@ -1,12 +1,12 @@
 'use client';
 
-import { TRACKING_STEP, type IncidentType, type TrackingResponse, type TrackingStep } from '@dispatch/contracts';
+import { TRACKING_STEP, type ApiError, type IncidentType, type TrackingResponse, type TrackingStep } from '@dispatch/contracts';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { AiCallWidget } from '@/src/components/call/AiCallWidget';
 import { LiveRouteMap } from '@/src/components/map/LiveRouteMap';
 import {
   AlertIcon, AmbulanceIcon, CarCrashIcon, CheckIcon, FallIcon, HeartIcon,
-  LungsIcon, TraumaIcon, UnconsciousIcon,
+  LungsIcon, PhoneIcon, TraumaIcon, UnconsciousIcon,
 } from '@/src/components/ui/icons';
 import { BrandMark } from '@/src/components/ui';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
@@ -103,6 +103,14 @@ export function TrackingClient({ token }: { token: string }) {
 
       <StatusHero tracking={tracking} />
 
+      {!tracking.reporterContactOnFile && tracking.step !== 'COMPLETED' && (
+        <ReporterContactCard
+          token={token}
+          vehicleCallsign={tracking.vehicle?.callsign ?? null}
+          onSaved={setTracking}
+        />
+      )}
+
       <section className="mt-4 overflow-hidden rounded-2xl border border-edge-subtle bg-surface-raised shadow-sm">
         <LiveRouteMap
           vehicle={tracking.vehicle ? { lat: tracking.vehicle.lat, lng: tracking.vehicle.lng } : null}
@@ -190,6 +198,115 @@ function ConfirmTypePanel({ onSelect, disabled }: { onSelect: (type: IncidentTyp
       <h2 id="tracking-confirm-title" className="flex items-center gap-2 font-bold text-warn"><AlertIcon size={19} /> Ayúdanos a confirmar</h2>
       <p className="mt-1 text-sm text-content-secondary">El audio no fue concluyente. ¿Qué está pasando?</p>
       <div className="mt-3 grid grid-cols-3 gap-2">{CONFIRM_TYPES.map(({ type, label, Icon }) => <button disabled={disabled} key={type} type="button" onClick={() => onSelect(type)} className="pressable flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-xl bg-surface-base p-2 text-content-secondary ring-1 ring-edge-subtle disabled:opacity-50"><Icon size={23} /><span className="text-center text-[11px] font-semibold leading-tight">{label}</span></button>)}</div>
+    </section>
+  );
+}
+
+function ReporterContactCard({
+  token, vehicleCallsign, onSaved,
+}: {
+  token: string;
+  vehicleCallsign: string | null;
+  onSaved: (updated: TrackingResponse) => void;
+}) {
+  const [phone, setPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+  // Prellenado con lo que el dispositivo ya haya guardado, igual que /report.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('sincro_contact_phone');
+      if (stored) setPhone(stored);
+    } catch {}
+  }, []);
+
+  // Sin prop de sesión: preguntamos al endpoint. Nunca bloquea el render.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/citizens/me', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => { if (alive) setHasSession(Boolean(payload?.citizen)); })
+      .catch(() => { if (alive) setHasSession(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const digits = phone.replace(/\D/g, '');
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/track/${token}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as ApiError | null;
+        setError(payload?.error?.message ?? 'No pudimos guardar el número.');
+        return;
+      }
+      const updated = (await response.json()) as TrackingResponse;
+      try { localStorage.setItem('sincro_contact_phone', phone.trim()); } catch {}
+      setSaved(true);
+      onSaved(updated);
+    } catch {
+      setError('No pudimos guardar el número. Revisa tu conexión.');
+    } finally {
+      setSaving(false);
+    }
+  }, [onSaved, phone, token]);
+
+  return (
+    <section className="mt-4 rounded-2xl border border-info/30 bg-info-soft p-4" aria-labelledby="reporter-contact-title">
+      <h2 id="reporter-contact-title" className="flex items-center gap-2 font-bold text-info">
+        <PhoneIcon size={18} /> ¿La tripulación puede llamarte?
+      </h2>
+      <p className="mt-1 text-sm leading-relaxed text-content-secondary">
+        Agrega tu número por si el personal necesita ubicarte o confirmar cómo llegar.
+        {vehicleCallsign ? ` Ambulancia ${vehicleCallsign} asignada.` : ''}
+      </p>
+      {saved ? (
+        <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-ok">
+          <CheckIcon size={18} /> Listo. La tripulación tiene tu número.
+        </p>
+      ) : (
+        <>
+          <div className="mt-3 flex gap-2">
+            <input
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="Ej: 300 123 4567"
+              aria-label="Tu número de celular"
+              className="min-w-0 flex-1 rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 text-sm font-bold text-content placeholder:font-normal placeholder:text-content-muted focus:border-info focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={save}
+              disabled={digits.length < 7 || saving}
+              aria-busy={saving}
+              className="pressable shrink-0 rounded-xl bg-info px-4 text-sm font-bold text-on-info disabled:opacity-50"
+            >
+              {saving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="mt-2 flex items-start gap-1.5 text-xs font-medium text-emergency">
+              <AlertIcon size={15} className="mt-0.5 shrink-0" /> <span>{error}</span>
+            </p>
+          )}
+          {hasSession === false && (
+            <a href="/login" className="mt-2 inline-block text-xs underline text-info">
+              Guardar mi número para la próxima
+            </a>
+          )}
+        </>
+      )}
     </section>
   );
 }
