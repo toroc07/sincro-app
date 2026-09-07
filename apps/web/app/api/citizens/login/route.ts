@@ -14,8 +14,8 @@ async function readJson(request: Request): Promise<unknown> {
 }
 
 /**
- * POST /api/citizens/login
- * Inicia sesión usando correo o teléfono y contraseña (si aplica).
+ * POST /api/citizens/login — "restaurar sesión por teléfono": sin contraseña,
+ * el identifier es el número con el que se registró.
  */
 export async function POST(request: Request): Promise<Response> {
   try {

@@ -1,4 +1,5 @@
 import { db } from '@dispatch/db';
+import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -62,6 +63,10 @@ export async function GET(): Promise<Response> {
     // `SELECT 1` basta para sacar a Neon de la suspensión: el coste está en
     // levantar el cómputo, no en la consulta.
     probe('database', async () => { await db().one('SELECT 1 AS ok'); }),
+    // Techo de respaldo del SLA de despacho: el cron de GitHub pinga esta ruta
+    // cada 10 min, así un reporte retenido se despacha aunque nadie tenga un
+    // panel abierto. `sweepExpiredOffers` nunca lanza.
+    probe('dispatch-sweep', () => sweepExpiredOffers()),
   ]);
 
   const services = Object.fromEntries(results) as Record<string, ProbeResult>;

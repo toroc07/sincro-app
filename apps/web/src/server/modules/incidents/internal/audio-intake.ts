@@ -11,14 +11,18 @@ import {
   LOW_CONFIDENCE_THRESHOLD,
   type AudioReportRequest,
   type AudioReportResponse,
+  type CapabilityLevel,
   type CreateIncidentRequest,
+  type IncidentPriority,
   type IncidentType,
 } from '@dispatch/contracts';
 import { randomBytes } from 'node:crypto';
 import { db, tx, type Queryable } from '@/src/server/infra/db';
 import { logger } from '@/src/server/infra/logger';
 import { createIncidentFromReport, type IncidentEngineOptions } from '../index';
+import { appendIncidentEvent } from './events';
 import { needsHumanConfirmation, transcribeAudio } from './transcription';
+import { applyTriage, parseSignals, ratchetTriage } from './triage';
 
 /** Token de seguimiento: 128 bits. El codigo INC-482 es corto y adivinable;
  *  esto no, y es lo que permite seguir el incidente sin login sin exponer los
@@ -59,8 +63,15 @@ export async function createIncidentFromAudio(
     });
   }
 
+  // Orden de precedencia del tipo (§24): una regla regex auditable manda; luego
+  // el boton que pulso el ciudadano; luego un tipo que SOLO propuso el LLM
+  // (podria ser MENOS grave que el boton — LLM "OTHER" vs boton "CARDIAC");
+  // luego OTHER. Un tipo solo-LLM ademas nace con `needs_review` (su confianza
+  // se fuerza por debajo del umbral en mergeClassification).
+  const suggestedType = transcription?.suggestedType ?? null;
+  const llmOnly = transcription?.typeSource === 'llm';
   const type: IncidentType =
-    transcription?.suggestedType ?? request.fallbackType ?? UNKNOWN_TYPE;
+    (llmOnly ? null : suggestedType) ?? request.fallbackType ?? suggestedType ?? UNKNOWN_TYPE;
 
   const incidentRequest: CreateIncidentRequest = {
     type,
@@ -117,6 +128,9 @@ export async function createIncidentFromAudio(
     return token;
   });
 
+  // El resumen consolidado por IA lo dispara `createIncidentFromReport` (cubre
+  // las ramas NEW y MERGE por las que pasa este audio) — no se repite aquí.
+
   return {
     incidentCode: created.incident.code,
     incidentId: created.incident.id,
@@ -130,14 +144,35 @@ export async function createIncidentFromAudio(
 
 /**
  * Confirmacion del ciudadano cuando la transcripcion no fue concluyente.
- * Corrige el tipo y vuelve a correr el triage por reglas.
+ * Corrige el tipo y vuelve a correr el triage por reglas (§24) con las señales
+ * criticas que se persistieron al crear el incidente.
+ *
+ * Trinquete en las DOS dimensiones (prioridad y capacidad): el ciudadano puede
+ * AGRAVAR la clasificacion, nunca rebajarla.
+ *  - De-escala (bajaria prioridad o capacidad): no se aplica nada, el incidente
+ *    queda `needs_review`, evento REPORTER `{rejected:true}`. Responde void — el
+ *    ciudadano no ve error.
+ *  - Escala algo: se aplica el tipo + el trinquete, y queda `needs_review` para
+ *    que un operador vea que un ciudadano subio la gravedad por un token que
+ *    varios reporteros comparten. Evento REPORTER `{viaTrackingToken:true}`.
+ *  - Igual en ambas: se fija el tipo confirmado, `needs_review = FALSE`, evento
+ *    SYSTEM.
  */
 export async function confirmIncidentType(
   trackingToken: string,
   type: IncidentType,
 ): Promise<void> {
-  const incident = await db().one<{ id: string; status: string }>(
-    'SELECT id, status FROM incidents WHERE tracking_token = ?',
+  const incident = await db().one<{
+    id: string;
+    status: string;
+    type: IncidentType;
+    priority: IncidentPriority | null;
+    required_capability: CapabilityLevel | null;
+    patient_count: number;
+    signals: string | null;
+  }>(
+    `SELECT id, status, type, priority, required_capability, patient_count, signals
+       FROM incidents WHERE tracking_token = ?`,
     [trackingToken],
   );
   if (!incident) return;
@@ -146,10 +181,45 @@ export async function confirmIncidentType(
   // pies del despachador crearia mas confusion que valor.
   if (!['REPORTED', 'VALIDATING', 'OPEN'].includes(incident.status)) return;
 
-  await db().run(
-    'UPDATE incidents SET type = ?, needs_review = FALSE WHERE id = ?',
-    [type, incident.id],
+  const signals = parseSignals(incident.signals);
+  const retriaged = applyTriage(type, { patientCount: incident.patient_count, ...signals });
+  const ratchet = ratchetTriage(
+    { priority: incident.priority, requiredCapability: incident.required_capability },
+    retriaged,
   );
+
+  await tx(async (t) => {
+    if (ratchet.deEscalates) {
+      await t.run('UPDATE incidents SET needs_review = TRUE WHERE id = ?', [incident.id]);
+      await appendIncidentEvent(t, {
+        incidentId: incident.id,
+        eventType: 'PRIORITY_SET',
+        actorType: 'REPORTER',
+        metadata: { requestedType: type, rejected: true, reason: 'de-escalada requiere operador' },
+      });
+      return;
+    }
+
+    const needsReview = ratchet.escalates;
+    await t.run(
+      `UPDATE incidents
+          SET type = ?, priority = ?, required_capability = ?, needs_review = ?
+        WHERE id = ?`,
+      [type, ratchet.priority, ratchet.requiredCapability, needsReview, incident.id],
+    );
+    await appendIncidentEvent(t, {
+      incidentId: incident.id,
+      eventType: 'PRIORITY_SET',
+      actorType: ratchet.escalates ? 'REPORTER' : 'SYSTEM',
+      metadata: {
+        confirmedType: type,
+        priority: ratchet.priority,
+        requiredCapability: ratchet.requiredCapability,
+        ruleId: retriaged.ruleId,
+        ...(ratchet.escalates ? { viaTrackingToken: true } : {}),
+      },
+    });
+  });
 }
 
 export { LOW_CONFIDENCE_THRESHOLD };

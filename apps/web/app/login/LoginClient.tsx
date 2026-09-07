@@ -64,13 +64,10 @@ export function LoginClient() {
   );
   const [citizenMode, setCitizenMode] = useState<CitizenAuthMode>('login');
 
-  // Campos de Ciudadano
+  // Campos de Ciudadano (passwordless: solo nombre + teléfono)
   const [citizenIdentifier, setCitizenIdentifier] = useState('');
-  const [citizenPassword, setCitizenPassword] = useState('');
   const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
-  const [regPassword, setRegPassword] = useState('');
 
   // Campos de Personal Médico/Operativo
   const [staffIdentifier, setStaffIdentifier] = useState('');
@@ -113,10 +110,7 @@ export function LoginClient() {
       const response = await fetch('/api/citizens/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: citizenIdentifier,
-          password: citizenPassword,
-        }),
+        body: JSON.stringify({ identifier: citizenIdentifier }),
       });
 
       if (!response.ok) {
@@ -148,12 +142,7 @@ export function LoginClient() {
       const response = await fetch('/api/citizens/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: regName,
-          email: regEmail,
-          phone: regPhone,
-          password: regPassword.trim() ? regPassword : undefined,
-        }),
+        body: JSON.stringify({ name: regName, phone: regPhone }),
       });
 
       if (!response.ok) {
@@ -234,8 +223,8 @@ export function LoginClient() {
           {userType === 'staff'
             ? 'Consola de acceso para paramédicos, tripulaciones de ambulancia y despachadores.'
             : citizenMode === 'login'
-              ? 'Accede para ver el historial de tus reportes de emergencia y tu perfil ciudadano.'
-              : 'Registra tu número para que las ambulancias y el equipo médico puedan contactarte.'}
+              ? 'Escribe el teléfono con el que te registraste para ver tu historial de reportes.'
+              : 'Regístrate con tu nombre y tu número — sin contraseña. Es lo que permite que la ambulancia te llame.'}
         </p>
       </header>
 
@@ -309,25 +298,17 @@ export function LoginClient() {
 
           {citizenMode === 'login' ? (
             <form onSubmit={(e) => void handleCitizenLogin(e)} className="flex flex-col gap-3.5 animate-fade-up">
-              <Field label="Correo o Teléfono">
+              <Field label="Teléfono con el que te registraste">
                 <input
                   required
-                  type="text"
+                  type="tel"
                   value={citizenIdentifier}
                   onChange={(e) => setCitizenIdentifier(e.target.value)}
-                  autoComplete="username"
+                  autoComplete="tel"
                   className="mt-1 w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
-                  placeholder="tu@correo.com o +57 300 000 0000"
+                  placeholder="+57 300 000 0000"
                 />
               </Field>
-
-              <PasswordField
-                label="Contraseña"
-                value={citizenPassword}
-                onChange={setCitizenPassword}
-                autoComplete="current-password"
-                placeholder="Contraseña"
-              />
 
               {error && (
                 <p role="alert" className="flex items-start gap-2 text-emergency text-sm rounded-lg bg-emergency-soft p-3">
@@ -377,25 +358,10 @@ export function LoginClient() {
                 />
               </Field>
 
-              <Field label="Correo electrónico">
-                <input
-                  required
-                  type="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  autoComplete="email"
-                  className="mt-1 w-full rounded-xl border border-edge-strong bg-surface-base px-4 py-3 text-[15px] text-content placeholder:text-content-muted focus:border-emergency focus:outline-none"
-                  placeholder="tu@correo.com"
-                />
-              </Field>
-
-              <PasswordField
-                label="Contraseña (opcional para proteger tu cuenta)"
-                value={regPassword}
-                onChange={setRegPassword}
-                autoComplete="new-password"
-                placeholder="Mínimo 4 caracteres (opcional)"
-              />
+              <p className="text-xs leading-relaxed text-content-secondary">
+                Sin contraseña ni correo: tu número es tu cuenta. Si vuelves a
+                registrarte con él, entras a la misma.
+              </p>
 
               {error && (
                 <p role="alert" className="flex items-start gap-2 text-emergency text-sm rounded-lg bg-emergency-soft p-3">

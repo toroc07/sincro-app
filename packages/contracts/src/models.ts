@@ -64,6 +64,17 @@ export const zIncident = z.object({
   mergedIntoIncidentId: zId.nullable(),
   createdAt: zTimestamp,
   closedAt: zTimestamp.nullable(),
+  // Aditivos-opcionales (migraciones 026/027). Ausentes en clientes/tests que
+  // construyen incidentes a mano; presentes cuando salen del mapper de la BD.
+  /** Resumen consolidado por IA de todos los reportes. null si no hubo motor LLM. */
+  aiSummary: z.string().nullable().optional(),
+  aiSummaryUpdatedAt: zTimestamp.nullable().optional(),
+  /** Última posición viva del ciudadano que reporta (mientras tiene /track abierto). */
+  reporterLat: z.number().nullable().optional(),
+  reporterLng: z.number().nullable().optional(),
+  reporterLocationAt: zTimestamp.nullable().optional(),
+  /** Origen sospechoso (muchos reportes en poco tiempo): no se auto-despacha. */
+  suspectedAbuse: z.boolean().optional(),
 });
 export type Incident = z.infer<typeof zIncident>;
 

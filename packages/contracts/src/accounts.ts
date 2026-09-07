@@ -1,16 +1,15 @@
 /**
  * CONTRACTS — registro de ciudadano y de ambulancia (§33, aditivo).
  *
- * El ciudadano se registra con nombre, correo y telefono antes de reportar.
- * El telefono es lo que permite al responder llamarlo desde el panel de la
- * ambulancia cuando un reporte no trae suficiente informacion — por eso es
- * el unico dato realmente obligatorio para que el sistema funcione; nombre
- * y correo son identificacion, no bloquean el flujo si son minimos.
+ * El ciudadano se registra con nombre y telefono, nada mas. El telefono es lo
+ * que permite al responder llamarlo desde el panel de la ambulancia cuando un
+ * reporte no trae suficiente informacion, y es la clave de identidad (un
+ * telefono repetido reingresa a la misma cuenta via upsert).
  *
- * Sin contraseña a proposito: es una demo de hackathon, no un sistema de
- * cuentas con recuperacion de acceso. La sesion es una cookie firmada
- * (mismo patron HMAC que session.ts), no hay verificacion de identidad
- * real — un telefono/correo repetido simplemente reingresa a esa cuenta.
+ * Sin contraseña ni correo a proposito (§ rediseño de flujo): quien reporta una
+ * emergencia no debe pelear con un formulario. La sesion es una cookie firmada
+ * de 1 año (mismo patron HMAC que session.ts); las contraseñas son solo para
+ * staff. `email` se conserva como campo opcional para no romper cuentas viejas.
  */
 
 import { z } from 'zod';
@@ -18,24 +17,30 @@ import { zCapabilityLevel, zId } from './models.js';
 
 // ─── CIUDADANO ──────────────────────────────────────────────────────────────
 
+// Cambio documentado (§ rediseño de flujo): `email` y `password` salen del
+// registro; el ciudadano es passwordless y sin correo.
 export const zCitizenRegisterRequest = z.object({
   name: z.string().trim().min(2).max(120),
-  email: z.string().trim().toLowerCase().email().max(160),
   phone: z.string().trim().min(7).max(30),
-  password: z.string().min(4).max(100).optional(),
 });
 export type CitizenRegisterRequest = z.infer<typeof zCitizenRegisterRequest>;
 
+// "login" es en realidad "restaurar sesion por telefono": el identifier es el
+// numero. `password` es opcional y solo lo exige una cuenta VIEJA que ya tenia
+// contraseña (migracion 023): esas no se degradan. Las cuentas nuevas son
+// passwordless a proposito — el telefono es un secreto debil, como el numero
+// de callback de una llamada al 123.
 export const zCitizenLoginRequest = z.object({
   identifier: z.string().trim().min(3).max(160),
-  password: z.string().min(1).max(100),
+  password: z.string().max(100).optional(),
 });
 export type CitizenLoginRequest = z.infer<typeof zCitizenLoginRequest>;
 
 export const zCitizenSession = z.object({
   id: zId,
   name: z.string(),
-  email: z.string(),
+  // Opcional-nullable: las cuentas nuevas no traen correo; las viejas si.
+  email: z.string().nullable().optional(),
   phone: z.string(),
 });
 export type CitizenSession = z.infer<typeof zCitizenSession>;

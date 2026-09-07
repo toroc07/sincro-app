@@ -4,6 +4,7 @@ import {
   rejectAndRedispatch, transport, type DispatchOptions,
 } from './internal/engine';
 import { expireOffers } from './internal/timeout';
+import { promoteHeldDispatches, HELD_DISPATCH_SLA_MS, HELD_DISPATCH_SLA_ABUSE_MS } from './internal/held';
 
 export const runDispatch = (incidentId: string, request: DispatchRequest, options?: DispatchOptions) => executeDispatch(incidentId, request, options);
 export const assignVehicle = assign;
@@ -31,3 +32,4 @@ export async function expireStaleOffers(options: DispatchOptions = {}) {
   return results;
 }
 export const getCandidates = getPersistedCandidates;
+export { promoteHeldDispatches, HELD_DISPATCH_SLA_MS, HELD_DISPATCH_SLA_ABUSE_MS };

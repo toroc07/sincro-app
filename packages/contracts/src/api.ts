@@ -98,6 +98,9 @@ export const zUpdateIncidentRequest = z.object({
   requiredCapability: zCapabilityLevel.optional(),
   priority: z.enum(['P1', 'P2', 'P3', 'P4']).optional(),   // override del operador
   cancel: z.object({ reason: z.string() }).optional(),
+  // Aditivo: el operador retira la marca de origen sospechoso (Fase F). Un
+  // incidente ya revisado por un humano puede auto-despacharse de nuevo.
+  clearAbuse: z.boolean().optional(),
 });
 
 // ─── VEHÍCULOS ──────────────────────────────────────────────────────────────
@@ -197,6 +200,7 @@ export const zApiError = z.object({
       'VEHICLE_UNAVAILABLE',     // 409 — perdiste la carrera de asignación
       'ASSIGNMENT_EXPIRED',      // 409
       'NO_RESOURCE',
+      'UNAUTHORIZED',            // 401 — login: identificador o contraseña inválidos (genérico, anti-enumeración)
       'FORBIDDEN',
       'INTERNAL',
     ]),

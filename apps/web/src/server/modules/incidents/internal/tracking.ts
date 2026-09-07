@@ -12,16 +12,43 @@
 
 import {
   toTrackingStep,
+  type ReporterLocationRequest,
   type TrackingResponse,
   type TrackingStep,
 } from '@dispatch/contracts';
-import { db, type Queryable } from '@/src/server/infra/db';
+import { db, tx, type Queryable } from '@/src/server/infra/db';
 import { fetchGraphRoute } from '@/src/server/infra/routing';
+import { appendIncidentEvent } from './events';
 
 /** El seguimiento se refresca cada pocos segundos: si el servicio de rutas
  *  está dormido, es preferible el ETA en línea recta al instante que una
  *  pantalla congelada esperando el A*. */
 const ROUTE_TIMEOUT_MS = 2_500;
+
+/** Una posición del reportante se considera fresca durante este tiempo. Más
+ *  vieja y el mapa no la pinta: un punto congelado engaña. */
+const REPORTER_LOCATION_FRESH_MS = 60_000;
+
+/** Cadencia mínima entre posiciones aceptadas por token. El cliente ya limita
+ *  a 10s; esto frena a un cliente roto o malicioso. */
+const REPORTER_LOCATION_MIN_INTERVAL_MS = 5_000;
+
+/** Rate-limit en memoria del proceso. CAVEAT SERVERLESS: en varias instancias
+ *  cada una tiene su Map, así que el tope efectivo se multiplica por el número
+ *  de instancias. Suficiente: el objetivo es frenar un bucle roto, no un DDoS,
+ *  y el UPDATE es una sola fila por token. Mismo compromiso que el bus. */
+const lastLocationAt = new Map<string, number>();
+
+/** Cadencia mínima entre teléfonos aceptados por token. El reporter teclea su
+ *  número una vez; esto frena un cliente roto que reintente en bucle. Mismo
+ *  compromiso serverless que `lastLocationAt`. */
+const REPORTER_CONTACT_MIN_INTERVAL_MS = 3_000;
+const lastContactAt = new Map<string, number>();
+
+/** Solo para tests: vacía el rate-limit en memoria de los contactos. */
+export function __resetReporterContactRateLimit(): void {
+  lastContactAt.clear();
+}
 
 interface IncidentRow {
   id: string;
@@ -30,6 +57,9 @@ interface IncidentRow {
   lat: number;
   lng: number;
   created_at: number;
+  reporter_lat: number | null;
+  reporter_lng: number | null;
+  reporter_location_at: number | null;
 }
 
 interface AssignmentRow {
@@ -91,7 +121,12 @@ export async function getTracking(
   q: Queryable = db(),
 ): Promise<TrackingResponse | null> {
   const incident = await q.one<IncidentRow & Record<string, unknown>>(
-    `SELECT id, code, status, lat, lng, created_at
+    `SELECT id, code, status, lat, lng, created_at,
+            reporter_lat, reporter_lng, reporter_location_at,
+            EXISTS(
+              SELECT 1 FROM incident_reports r
+               WHERE r.incident_id = incidents.id AND r.reporter_contact IS NOT NULL
+            ) AS reporter_contact_on_file
        FROM incidents WHERE tracking_token = ?`,
     [trackingToken],
   );
@@ -203,6 +238,112 @@ export async function getTracking(
     distanceM,
     timeline,
     reportCount: reportCountRow?.n ?? 1,
+    reporterContactOnFile: Boolean(incident.reporter_contact_on_file),
+    reporterLocation: incident.reporter_lat != null
+      && incident.reporter_lng != null
+      && incident.reporter_location_at != null
+      && now - incident.reporter_location_at < REPORTER_LOCATION_FRESH_MS
+      ? { lat: incident.reporter_lat, lng: incident.reporter_lng, at: incident.reporter_location_at }
+      : null,
     serverTime: now,
   };
+}
+
+/**
+ * Guarda la última posición viva del ciudadano que reporta.
+ *
+ * Devuelve `null` si el token no existe (la ruta responde 404). Si el incidente
+ * ya está cerrado, o si llega demasiado seguido (rate-limit), es un no-op
+ * silencioso que igual devuelve `{ ok: true }`: al cliente no le importa.
+ */
+export async function updateReporterLocation(
+  trackingToken: string,
+  input: ReporterLocationRequest,
+  now: number = Date.now(),
+): Promise<{ ok: true } | null> {
+  const q = db();
+  const incident = await q.one<{ id: string; status: string }>(
+    'SELECT id, status FROM incidents WHERE tracking_token = ?',
+    [trackingToken],
+  );
+  if (!incident) return null;
+
+  if (['COMPLETED', 'CANCELLED', 'DUPLICATE'].includes(incident.status)) return { ok: true };
+
+  const last = lastLocationAt.get(trackingToken) ?? 0;
+  if (now - last < REPORTER_LOCATION_MIN_INTERVAL_MS) return { ok: true };
+  lastLocationAt.set(trackingToken, now);
+
+  await q.run(
+    `UPDATE incidents
+        SET reporter_lat = ?, reporter_lng = ?, reporter_accuracy_m = ?, reporter_location_at = ?
+      WHERE id = ?`,
+    [input.lat, input.lng, input.accuracyM ?? null, now, incident.id],
+  );
+  return { ok: true };
+}
+
+/**
+ * El reporter agrega su teléfono DESPUÉS de enviar el reporte, desde la pantalla
+ * de seguimiento, para que la tripulación pueda llamarlo.
+ *
+ * Devuelve `null` si el token no existe (la ruta responde 404). Si el incidente
+ * ya está cerrado, o si llega demasiado seguido (rate-limit), es un no-op
+ * silencioso que igual devuelve `{ ok: true }`.
+ *
+ * El número se guarda TAL CUAL lo tecleó el usuario (solo `.trim()`): no se
+ * normaliza como en citizens, donde el `tel:` del panel marca lo que hay en la
+ * columna. Se escribe en el PRIMER reporte del incidente que aún no tenga
+ * contacto — así `listReporterContacts` lo expone y el operador ve de dónde
+ * salió. Si todos los reportes ya tienen contacto (el reporter dio otro número),
+ * no se pisa nada: solo se registra el evento con el número en `metadata` para
+ * que el operador lo vea igual.
+ */
+export async function attachReporterContact(
+  trackingToken: string,
+  phone: string,
+  now: number = Date.now(),
+): Promise<{ ok: true } | null> {
+  const incident = await db().one<{ id: string; status: string }>(
+    'SELECT id, status FROM incidents WHERE tracking_token = ?',
+    [trackingToken],
+  );
+  if (!incident) return null;
+
+  if (['COMPLETED', 'CANCELLED', 'DUPLICATE'].includes(incident.status)) return { ok: true };
+
+  const last = lastContactAt.get(trackingToken) ?? 0;
+  if (now - last < REPORTER_CONTACT_MIN_INTERVAL_MS) return { ok: true };
+  lastContactAt.set(trackingToken, now);
+
+  const contact = phone.trim();
+
+  await tx(async (t) => {
+    const updated = await t.run(
+      `UPDATE incident_reports SET reporter_contact = ?
+         WHERE id = (
+           SELECT id FROM incident_reports
+            WHERE incident_id = ? AND reporter_contact IS NULL
+            ORDER BY created_at ASC
+            LIMIT 1
+         )`,
+      [contact, incident.id],
+    );
+    const wroteColumn = updated.changes > 0;
+
+    await appendIncidentEvent(t, {
+      incidentId: incident.id,
+      eventType: 'REPORTER_CONTACT_ADDED',
+      actorType: 'REPORTER',
+      createdAt: now,
+      // Si el número quedó escrito en la columna no se repite en texto plano del
+      // evento; si NO se escribió (todos los reportes ya tenían contacto) va en
+      // metadata para que el operador vea el número que dio el reporter.
+      metadata: wroteColumn
+        ? { added: true, viaTrackingToken: true }
+        : { added: true, viaTrackingToken: true, phone: contact },
+    });
+  });
+
+  return { ok: true };
 }

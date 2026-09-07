@@ -44,13 +44,13 @@ describe('staff module', () => {
     expect(session.role).toBe('RESPONDER');
   });
 
-  it('rechaza contraseñas incorrectas con código 403', async () => {
+  it('rechaza contraseñas incorrectas con 401 genérico', async () => {
     await expect(
       loginStaff('user-responder', 'clave_invalida', mockQueryable as any),
     ).rejects.toThrow();
   });
 
-  it('rechaza usuarios inexistentes con código 404', async () => {
+  it('rechaza usuarios inexistentes con 401 genérico (anti-enumeración)', async () => {
     await expect(
       loginStaff('inexistente@sincro.co', 'responder123', mockQueryable as any),
     ).rejects.toThrow();

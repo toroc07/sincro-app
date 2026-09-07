@@ -6,9 +6,7 @@ import {
   type Incident,
   type IncidentDetailResponse,
   type IncidentEvent,
-  type IncidentPriority,
   type IncidentStatus,
-  type TriageResult,
   type zUpdateIncidentRequest,
 } from '@dispatch/contracts';
 import type { z } from 'zod';
@@ -33,7 +31,10 @@ import {
   setTriage,
   updateOperationalFields,
 } from './internal/repository';
-import { applyTriage } from './internal/triage';
+import { regenerateIncidentSummary } from './internal/summary';
+import {
+  applyTriage, mergeSignals, parseSignals, ratchetTriage, type CriticalSignals,
+} from './internal/triage';
 
 export type UpdateIncidentRequest = z.infer<typeof zUpdateIncidentRequest>;
 
@@ -42,15 +43,10 @@ export interface IncidentEngineOptions {
   actorType?: ActorType;
   actorId?: string | null;
   idempotencyKey?: string | null;
+  /** El origen (teléfono/IP) superó el rate-limit: el incidente se marca
+   *  `suspected_abuse` y no se auto-despacha. Nunca bloquea el reporte. */
+  suspectedAbuse?: boolean;
 }
-
-const PRIORITY_RANK: Record<IncidentPriority, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
-const CAPABILITY_RANK: Record<NonNullable<Incident['requiredCapability']>, number> = {
-  MEDICAL_MOTO: 0,
-  BLS: 1,
-  ALS: 2,
-  RESCUE: 3,
-};
 
 async function requireIncident(q: Queryable, incidentId: string): Promise<Incident> {
   const incident = await findIncident(q, incidentId);
@@ -91,12 +87,6 @@ function signalsFor(request: CreateIncidentRequest) {
   return { patientCount: request.patientCount, ...(request.signals ?? {}) };
 }
 
-function shouldEscalate(current: Incident, result: TriageResult): boolean {
-  if (!current.priority || !current.requiredCapability) return true;
-  return PRIORITY_RANK[result.priority] < PRIORITY_RANK[current.priority]
-    || CAPABILITY_RANK[result.requiredCapability] > CAPABILITY_RANK[current.requiredCapability];
-}
-
 export async function createIncidentFromReport(
   request: CreateIncidentRequest,
   options: IncidentEngineOptions = {},
@@ -129,21 +119,50 @@ export async function createIncidentFromReport(
         actorId: options.actorId, createdAt: now,
         metadata: { reportId: report.id, confidence: decision.confidence, reason: decision.reason },
       });
-      if (shouldEscalate(decision.incident, triageResult)) {
-        const priority = !decision.incident.priority
-          || PRIORITY_RANK[triageResult.priority] < PRIORITY_RANK[decision.incident.priority]
-          ? triageResult.priority : decision.incident.priority;
-        const capability = !decision.incident.requiredCapability
-          || CAPABILITY_RANK[triageResult.requiredCapability] > CAPABILITY_RANK[decision.incident.requiredCapability]
-          ? triageResult.requiredCapability : decision.incident.requiredCapability;
-        await setTriage(t, decision.incident.id, priority, capability);
+      // Fusiona señales: si algún reporte de esta emergencia marcó "atrapado",
+      // el incidente queda "atrapado". Con las señales fusionadas se recalcula
+      // el trinquete de triage — la gravedad nunca baja al llegar más reportes.
+      const currentSignalsRow = await t.one<{ signals: string | null }>(
+        'SELECT signals FROM incidents WHERE id = ?', [decision.incident.id],
+      );
+      const mergedSignals = mergeSignals(parseSignals(currentSignalsRow?.signals), request.signals);
+      await t.run('UPDATE incidents SET signals = ? WHERE id = ?', [
+        JSON.stringify(mergedSignals), decision.incident.id,
+      ]);
+
+      const effectivePatientCount = Math.max(request.patientCount, decision.incident.patientCount);
+      const mergedTriage = applyTriage(request.type, {
+        patientCount: effectivePatientCount, ...mergedSignals,
+      });
+      const ratchet = ratchetTriage(decision.incident, mergedTriage);
+      if (ratchet.escalates) {
+        await setTriage(t, decision.incident.id, ratchet.priority, ratchet.requiredCapability);
         await appendIncidentEvent(t, {
           incidentId: decision.incident.id, eventType: 'PRIORITY_SET', actorType: 'SYSTEM', createdAt: now,
-          metadata: { priority, requiredCapability: capability, ruleId: triageResult.ruleId, escalatedByReportId: report.id },
+          metadata: {
+            priority: ratchet.priority, requiredCapability: ratchet.requiredCapability,
+            ruleId: mergedTriage.ruleId, escalatedByReportId: report.id,
+          },
         });
       }
       if (request.patientCount > decision.incident.patientCount) {
         await updateOperationalFields(t, decision.incident.id, { patientCount: request.patientCount });
+      }
+      // Un merge es CORROBORACIÓN, no abuso: nunca marca `suspected_abuse`. Y
+      // 3+ testigos distintos de la misma emergencia limpian una marca previa —
+      // eso ya no parece un bucle roto, parece una emergencia real.
+      if (decision.incident.suspectedAbuse) {
+        const countRow = await t.one<{ n: number }>(
+          'SELECT COUNT(*)::INTEGER AS n FROM incident_reports WHERE incident_id = ?',
+          [decision.incident.id],
+        );
+        if ((countRow?.n ?? 0) >= 3) {
+          await t.run('UPDATE incidents SET suspected_abuse = FALSE WHERE id = ?', [decision.incident.id]);
+          await appendIncidentEvent(t, {
+            incidentId: decision.incident.id, eventType: 'MANUAL_OVERRIDE', actorType: 'SYSTEM', createdAt: now,
+            metadata: { clearedAbuseFlag: true, reportCount: countRow?.n ?? 0, reason: 'corroborado por 3+ reportes' },
+          });
+        }
       }
       emittedTopic = 'incident:merged';
       return {
@@ -163,6 +182,19 @@ export async function createIncidentFromReport(
       id: incident.id, code: incident.code, status: incident.status, type: incident.type,
       lat: incident.lat, lng: incident.lng, patientCount: incident.patientCount, createdAt: now,
     });
+    // Señales críticas del reporter (§24): se persisten para que el re-triage
+    // desde /track (confirmIncidentType) no corra a ciegas.
+    const reportSignals: CriticalSignals = request.signals ?? {};
+    if (Object.keys(reportSignals).length > 0) {
+      await t.run('UPDATE incidents SET signals = ? WHERE id = ?', [
+        JSON.stringify(reportSignals), incidentId,
+      ]);
+    }
+    // Rate-limit superado: se marca el incidente. El reporte se crea igual — una
+    // emergencia real no puede perderse — pero la ruta forzará RECOMMEND.
+    if (options.suspectedAbuse) {
+      await t.run('UPDATE incidents SET suspected_abuse = TRUE WHERE id = ?', [incidentId]);
+    }
     await appendIncidentEvent(t, {
       incidentId, eventType: 'INCIDENT_CREATED', actorType, actorId: options.actorId,
       metadata: decision.kind === 'SUGGEST'
@@ -201,7 +233,16 @@ export async function createIncidentFromReport(
     };
   });
 
-  if (emittedTopic) bus.emit(emittedTopic, result.incident);
+  if (emittedTopic) {
+    bus.emit(emittedTopic, result.incident);
+    // Resumen consolidado por IA: fuera del tx y SIN await — un reporte nuevo
+    // (creado o fusionado) regenera la síntesis de todos los reportes, pero eso
+    // nunca puede retrasar la respuesta al ciudadano ni tumbarla si el LLM
+    // falla. En un replay idempotente (`emittedTopic` null) no hay datos nuevos
+    // y no se regenera.
+    void regenerateIncidentSummary(result.incident.id).catch(() => {});
+  }
+
   return result;
 }
 
@@ -272,6 +313,15 @@ export async function updateIncident(
         metadata: { priority: request.priority, requiredCapability: request.requiredCapability },
       });
     }
+    if (request.clearAbuse) {
+      // El operador revisó el incidente: retira la marca de origen sospechoso
+      // para que pueda auto-despacharse con el SLA normal.
+      await t.run('UPDATE incidents SET suspected_abuse = FALSE WHERE id = ?', [incidentId]);
+      await appendIncidentEvent(t, {
+        incidentId, eventType: 'MANUAL_OVERRIDE', actorType: options.actorType ?? 'DISPATCHER',
+        actorId: options.actorId, createdAt: now, metadata: { clearedAbuseFlag: true },
+      });
+    }
     return requireIncident(t, incidentId);
   });
   bus.emit('incident:updated', updated);
@@ -320,7 +370,71 @@ export async function getPrimaryReportSummary(
   return { description: row?.description ?? null, reporterContact: row?.reporter_contact ?? null };
 }
 
+export interface ReporterContact {
+  contact: string;
+  name: string | null;
+  snippet: string | null;
+  at: number;
+  isPrimary: boolean;
+}
+
+/** Todos los contactos que reportaron esta emergencia — una emergencia real
+ *  suele tener varios testigos y la ambulancia necesita poder llamar a
+ *  cualquiera, no solo al primero. Se deduplica por número quedándose con el
+ *  reporte más reciente; el que corresponde al reporte primario se marca.
+ *
+ *  El `name` sale de casar el teléfono contra `citizens` comparando solo
+ *  dígitos (los reportes traen el número tecleado con o sin prefijo/espacios).
+ *  Es una PISTA, no identidad verificada: cualquiera puede teclear un número
+ *  ajeno. */
+export async function listReporterContacts(
+  incidentId: string,
+  q: Queryable = db(),
+): Promise<ReporterContact[]> {
+  const rows = await q.many<{
+    reporter_contact: string;
+    name: string | null;
+    description: string | null;
+    created_at: number;
+    is_primary: boolean;
+  }>(
+    `SELECT r.reporter_contact, c.name, r.description, r.created_at,
+            (r.id = i.primary_report_id) AS is_primary
+       FROM incident_reports r
+       JOIN incidents i ON i.id = r.incident_id
+       LEFT JOIN citizens c
+         ON regexp_replace(c.phone, '\\D', '', 'g') = regexp_replace(r.reporter_contact, '\\D', '', 'g')
+        AND length(regexp_replace(r.reporter_contact, '\\D', '', 'g')) >= 7
+      WHERE r.incident_id = ? AND r.reporter_contact IS NOT NULL
+      ORDER BY r.created_at DESC`,
+    [incidentId],
+  );
+
+  const byContact = new Map<string, ReporterContact>();
+  for (const row of rows) {
+    const existing = byContact.get(row.reporter_contact);
+    if (existing) {
+      // Ya se guardó la fila más reciente (orden DESC); solo falta arrastrar el
+      // flag de primario si aparece en un reporte anterior del mismo número.
+      if (row.is_primary) existing.isPrimary = true;
+      continue;
+    }
+    byContact.set(row.reporter_contact, {
+      contact: row.reporter_contact,
+      name: row.name ?? null,
+      snippet: row.description ? row.description.slice(0, 90) : null,
+      at: row.created_at,
+      isPrimary: row.is_primary === true,
+    });
+  }
+
+  return [...byContact.values()].sort(
+    (a, b) => b.at - a.at || (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0),
+  );
+}
+
 export { areIncidentTypesCompatible, decideDeduplication } from './internal/dedup';
 export { applyTriage } from './internal/triage';
 export { confirmIncidentType, createIncidentFromAudio } from './internal/audio-intake';
-export { getTracking } from './internal/tracking';
+export { attachReporterContact, getTracking, updateReporterLocation } from './internal/tracking';
+export { buildIncidentSummary, regenerateIncidentSummary } from './internal/summary';
