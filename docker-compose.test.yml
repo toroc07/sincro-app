@@ -1,0 +1,38 @@
+# Suite de verificación en contenedor — aislada del stack de docker-compose.yml.
+#
+#   docker compose -f docker-compose.test.yml run --rm ci
+#
+# Corre typecheck + check:layers + toda la suite vitest (incluido el e2e de
+# integración, que recrea el esquema). La base es efímera (tmpfs) y el runner
+# comparte su namespace de red para que DATABASE_URL apunte a `localhost` — es
+# la condición que `isLocalPostgres()` exige para no saltarse el e2e.
+
+name: sincro-app-test
+
+services:
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dispatch_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dispatch_test"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  ci:
+    build:
+      context: .
+      target: source
+    command: sh -c "npm run typecheck && npm run check:layers && npm test"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dispatch_test
+      CI: "true"
+    network_mode: "service:test-db"
+    depends_on:
+      test-db:
+        condition: service_healthy

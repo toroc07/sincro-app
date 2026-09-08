@@ -89,8 +89,12 @@ function createPool(): Pool {
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
     // Los Postgres gestionados (Neon, Vercel, Supabase) exigen TLS pero usan
-    // certificados que el trust store de Node no siempre reconoce.
-    ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
+    // certificados que el trust store de Node no siempre reconoce. Un Postgres
+    // en contenedor (docker-compose) no tiene TLS: se desactiva con el
+    // `sslmode=disable` estándar de libpq en la URL.
+    ssl: connectionString.includes('localhost')
+      || connectionString.includes('127.0.0.1')
+      || /[?&]sslmode=disable(?:&|$)/.test(connectionString)
       ? undefined
       : { rejectUnauthorized: false },
   });
