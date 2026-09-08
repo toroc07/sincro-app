@@ -10,6 +10,28 @@ import { HttpError } from '../../errors.js';
 const GROQ_TRANSCRIPTION_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_MODEL = 'whisper-large-v3-turbo';
 
+/**
+ * Whisper, ante audio en silencio o con solo ruido de fondo, no devuelve vacío:
+ * "alucina" una de un puñado de frases que aprendió de subtítulos de YouTube
+ * ("Gracias.", "Gracias por ver el video", "Subtítulos por la comunidad de
+ * Amara.org"...). En una llamada de emergencia eso es peor que un error: mete
+ * una frase falsa en la conversación y el asistente responde a la nada. Si la
+ * transcripción es SOLO una de esas frases, la tratamos como "no se entendió".
+ */
+const HALLUCINATION_PATTERNS: readonly RegExp[] = [
+  /^[\s.,!¡¿?…-]*$/,
+  /^¡?\s*(muchas\s+)?gracias(\s+por\s+ver(\s+el\s+v[ií]deo)?)?\s*!?\.?$/i,
+  /^gracias\s+por\s+(ver|acompañarnos|su\s+atención).*$/i,
+  /^subt[ií]tulos?\s+(realizados?\s+por|por\s+la\s+comunidad).*$/i,
+  /^subt[ií]tulos?\s+(hechos?\s+)?por\s+.*amara\.org.*$/i,
+  /^(¡?\s*)?suscr[ií]b(ete|anse)(\s+al\s+canal)?\s*!?\.?$/i,
+  /^(nos\s+vemos|hasta\s+(la\s+)?pr[óo]xima|hasta\s+luego)\s*\.?$/i,
+];
+
+function isLikelyHallucination(text: string): boolean {
+  return HALLUCINATION_PATTERNS.some((re) => re.test(text));
+}
+
 export async function transcribeAudio(buffer: Buffer, mimeType: string, filename: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new HttpError(500, 'INTERNAL', 'Transcripción de audio no configurada (falta GROQ_API_KEY)');
@@ -30,9 +52,13 @@ export async function transcribeAudio(buffer: Buffer, mimeType: string, filename
   }
   const payload = await response.json() as { text?: string };
   const text = (payload.text ?? '').trim();
-  if (!text) throw new HttpError(422, 'VALIDATION_FAILED', 'No se entendió el audio. Intenta grabar de nuevo.');
+  if (!text || isLikelyHallucination(text)) {
+    throw new HttpError(422, 'VALIDATION_FAILED', 'No te escuchamos bien. Mantén el botón pulsado y habla cerca del micrófono.');
+  }
   return text.slice(0, 1000);
 }
+
+export const __test = { isLikelyHallucination };
 
 /**
  * Clasificación de texto libre a `IncidentType` — por palabras clave, no LLM.

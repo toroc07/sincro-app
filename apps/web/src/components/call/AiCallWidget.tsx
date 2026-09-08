@@ -1,48 +1,38 @@
 'use client';
 
 /**
- * "Llamada" con la IA — orientación de primeros auxilios en vivo mientras
- * espera la ambulancia. Habla contra el audio-service (servicio aparte,
- * NEXT_PUBLIC_AUDIO_SERVICE_URL), no contra esta app: no crea ni modifica
- * incidentes, eso lo sigue haciendo POST /api/incidents/audio.
+ * "Nota de voz" con la IA — orientación de primeros auxilios mientras el
+ * reportero espera la ambulancia. Habla contra el audio-service (servicio
+ * aparte, NEXT_PUBLIC_AUDIO_SERVICE_URL), no contra esta app: no crea ni
+ * modifica incidentes, eso lo sigue haciendo POST /api/incidents/audio.
  *
- * Detección de voz automática (VAD): nada de botones de grabar/detener por
- * turno, se siente como hablar con alguien. Mismo mecanismo que
- * backend/public/test.html, adaptado a los tokens de diseño de la app.
+ * MODELO PULSAR-PARA-HABLAR (no llamada en vivo). Antes había detección de voz
+ * automática (VAD): el micrófono quedaba abierto y decidía solo cuándo cortar
+ * el turno. En la calle, con pánico y ruido de fondo, eso fallaba por los dos
+ * lados — no arrancaba porque la voz no pasaba el umbral, o no cerraba nunca
+ * porque el ruido lo mantenía "hablando". Ahora el reportero MANTIENE PULSADO
+ * el botón mientras habla y lo SUELTA para enviar: el micrófono solo graba con
+ * el dedo encima, así que el ruido de fondo solo entra en esa ventana y, en
+ * silencio, no se está escuchando nada.
  *
- * TIEMPO DE REACCIÓN — el silencio mientras "piensa" la IA es el peor momento
- * de una llamada de emergencia, así que se ataca por cuatro lados:
- *   1. La respuesta llega en streaming (NDJSON): se oye la PRIMERA frase sin
- *      esperar a que el modelo termine la última ni a que se sintetice toda
- *      la voz. Ver POST /api/incidents/converse/stream.
- *   2. El VAD cierra el turno antes (600 ms de silencio, no 900) y muestrea
- *      más seguido.
- *   3. Barge-in: si el reportero habla encima de la IA, la corta y escucha —
- *      como con una persona, no hay que esperar a que termine la frase.
- *   4. El servicio se calienta al montar el widget, no al pulsar llamar: en
- *      capa gratuita despertar el contenedor cuesta más que todo lo demás.
+ * TIEMPO DE REACCIÓN — la respuesta llega en streaming (NDJSON): se oye la
+ * PRIMERA frase sin esperar a que el modelo termine la última ni a que se
+ * sintetice toda la voz. Ver POST /api/incidents/converse/stream. El servicio
+ * se calienta al montar el widget, no al primer toque.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertIcon, PhoneIcon, PhoneOffIcon } from '@/src/components/ui/icons';
+import { AlertIcon, MicIcon, SpinnerIcon, StopIcon } from '@/src/components/ui/icons';
 
 const AUDIO_SERVICE_URL = process.env.NEXT_PUBLIC_AUDIO_SERVICE_URL ?? '';
-/** Silencio que cierra el turno. Por debajo de ~500 ms se corta a quien duda
- *  a mitad de frase, que en pánico es lo normal. */
-const SILENCE_MS = 600;
-const MIN_SPEECH_MS = 250;
-const MAX_TURN_MS = 20_000;
-/** Cada cuánto se mide el volumen. Es el retardo máximo entre que alguien
- *  empieza a hablar y que el micrófono empieza a grabar. */
-const VAD_POLL_MS = 60;
-const SPEECH_THRESHOLD = 0.02;
-/** Interrumpir a la IA exige hablar más fuerte que el umbral normal y
- *  sostenerlo: con manos libres el propio altavoz entra por el micrófono y no
- *  debe cortarse a sí misma. La cancelación de eco del navegador hace el resto. */
-const BARGE_THRESHOLD = 0.06;
-const BARGE_SUSTAIN_MS = 220;
+/** Toque demasiado corto: fue un roce, no una frase. Se descarta sin enviar
+ *  para no gastar un turno en audio vacío que el modelo transcribe como ruido. */
+const MIN_HOLD_MS = 350;
+/** Corte por seguridad si alguien deja el dedo puesto: un turno de emergencia
+ *  es una o dos frases, no un monólogo. */
+const MAX_RECORD_MS = 25_000;
 
-type CallState = 'idle' | 'listening' | 'recording' | 'processing' | 'speaking' | 'unavailable';
+type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking' | 'unavailable';
 
 interface Turn { role: 'user' | 'assistant'; content: string }
 
@@ -62,11 +52,11 @@ interface ConverseResponse {
   history: Turn[];
 }
 
-const STATUS_LABEL: Partial<Record<CallState, string>> = {
-  listening: 'Escuchando…',
-  recording: 'Te estoy escuchando…',
-  processing: 'Pensando…',
-  speaking: 'Hablando… (puedes interrumpir)',
+const STATUS_LABEL: Partial<Record<VoiceState, string>> = {
+  idle: 'Mantén pulsado el botón para hablar y suéltalo para enviar.',
+  recording: 'Grabando… suelta para enviar.',
+  processing: 'Enviando y esperando respuesta…',
+  speaking: 'Reproduciendo respuesta… (pulsa para responder)',
 };
 
 /** Opus a 24 kbps: un turno de 5 s pesa ~15 KB. En una red móvil mala la
@@ -79,23 +69,21 @@ function recorderOptions(): MediaRecorderOptions {
 }
 
 export function AiCallWidget() {
-  const [state, setState] = useState<CallState>(AUDIO_SERVICE_URL ? 'idle' : 'unavailable');
+  const [state, setState] = useState<VoiceState>(AUDIO_SERVICE_URL ? 'idle' : 'unavailable');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const historyRef = useRef<Turn[]>([]);
-  const stateRef = useRef<CallState>(state);
+  const stateRef = useRef<VoiceState>(state);
   const streamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
-  const pollTimerRef = useRef<number | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderOptionsRef = useRef<MediaRecorderOptions>({});
   const chunksRef = useRef<BlobPart[]>([]);
-  const speechStartedAtRef = useRef(0);
-  const lastLoudAtRef = useRef(0);
-  const bargeSinceRef = useRef(0);
+  /** El dedo sigue sobre el botón. Se consulta tras el `await` del permiso de
+   *  micrófono: si para entonces ya se soltó, no se empieza a grabar. */
+  const holdingRef = useRef(false);
+  const pressStartAtRef = useRef(0);
+  const maxTimerRef = useRef<number | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -106,48 +94,50 @@ export function AiCallWidget() {
   const streamDoneRef = useRef(false);
   const serverSpokeRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  /** Turno en curso, para poder cerrarlo en el historial si el reportero
-   *  interrumpe a mitad: sin esto la IA "olvidaría" lo que ya dijo. */
-  const turnTranscriptRef = useRef('');
-  const turnReplyRef = useRef('');
   const assistantOpenRef = useRef(false);
 
-  const setCallState = (next: CallState) => { stateRef.current = next; setState(next); };
-  /** ¿Colgaron mientras esperábamos al servidor? Va en una función y no en una
-   *  comparación suelta para que el compilador no arrastre el estrechamiento
-   *  de tipos de un chequeo anterior a través de los `await`. */
-  const hungUp = () => stateRef.current === 'idle';
+  const setVoiceState = (next: VoiceState) => { stateRef.current = next; setState(next); };
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [turns]);
 
-  // Despertar el servicio al montar, no al pulsar llamar: en capa gratuita el
-  // contenedor dormido tarda ~50 s, y ese tiempo hay que gastarlo mientras la
-  // persona lee la pantalla, no cuando ya está hablando.
+  // Despertar el servicio al montar: en capa gratuita el contenedor dormido
+  // tarda unos segundos, y ese tiempo hay que gastarlo mientras la persona lee
+  // la pantalla, no cuando ya está esperando su respuesta.
   useEffect(() => {
     if (!AUDIO_SERVICE_URL) return;
     void fetch(`${AUDIO_SERVICE_URL}/health`, { cache: 'no-store' }).catch(() => {});
   }, []);
 
-  useEffect(() => () => { endCall(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => () => { teardown(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
-  function currentVolume(): number {
-    const analyser = analyserRef.current;
-    const dataArray = dataArrayRef.current;
-    if (!analyser || !dataArray) return 0;
-    analyser.getByteTimeDomainData(dataArray);
-    let sum = 0;
-    for (const v of dataArray) { const norm = (v - 128) / 128; sum += norm * norm; }
-    return Math.sqrt(sum / dataArray.length);
+  // ── Micrófono ──────────────────────────────────────────────────────────────
+
+  /** Pide el micrófono la primera vez y reutiliza el stream en los toques
+   *  siguientes (no vuelve a preguntar el permiso ya concedido). El
+   *  MediaRecorder solo corre con el dedo puesto, así que tener el track
+   *  abierto no graba nada por sí mismo. Si el track quedó muerto (otra
+   *  pestaña/app tomó el micro, o una interrupción del sistema), se pide de
+   *  nuevo — un `readyState === 'ended'` no se recupera. */
+  async function acquireMic(): Promise<MediaStream | null> {
+    const live = streamRef.current?.getAudioTracks()[0]?.readyState === 'live';
+    if (streamRef.current && streamRef.current.active && live) return streamRef.current;
+    releaseMic();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      recorderOptionsRef.current = recorderOptions();
+      return stream;
+    } catch {
+      setErrorMsg('No pudimos usar el micrófono. Revisa el permiso del navegador y vuelve a intentarlo.');
+      return null;
+    }
   }
 
-  function startRecorder() {
-    const stream = streamRef.current;
-    if (!stream) return;
-    chunksRef.current = [];
-    const recorder = new MediaRecorder(stream, recorderOptionsRef.current);
-    recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
-    recorder.start();
-    mediaRecorderRef.current = recorder;
+  function releaseMic() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
   }
 
   // ── Reproducción encolada ──────────────────────────────────────────────────
@@ -158,12 +148,12 @@ export function AiCallWidget() {
     if (!el || !next) {
       playingRef.current = false;
       // El turno solo termina cuando ya no queda voz por reproducir: volver a
-      // escuchar antes cortaría a la IA a media frase.
-      if (streamDoneRef.current && stateRef.current === 'speaking') setCallState('listening');
+      // "listo" antes cortaría a la IA a media frase.
+      if (streamDoneRef.current && stateRef.current === 'speaking') setVoiceState('idle');
       return;
     }
     playingRef.current = true;
-    if (stateRef.current !== 'speaking') setCallState('speaking');
+    if (stateRef.current !== 'speaking') setVoiceState('speaking');
     const advance = () => { el.onended = null; el.onerror = null; playNext(); };
     el.src = next;
     el.onended = advance;
@@ -187,24 +177,22 @@ export function AiCallWidget() {
   /** Voz del navegador: solo si el servidor no pudo sintetizar ni una frase.
    *  Nunca ambas — se oiría la respuesta dos veces. */
   function speakWithBrowser(text: string) {
-    if (!('speechSynthesis' in window)) { setCallState('listening'); return; }
-    setCallState('speaking');
+    if (!('speechSynthesis' in window)) { setVoiceState('idle'); return; }
+    setVoiceState('speaking');
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-ES';
-    utterance.onend = () => { if (stateRef.current === 'speaking') setCallState('listening'); };
-    utterance.onerror = () => { if (stateRef.current === 'speaking') setCallState('listening'); };
+    utterance.onend = () => { if (stateRef.current === 'speaking') setVoiceState('idle'); };
+    utterance.onerror = () => { if (stateRef.current === 'speaking') setVoiceState('idle'); };
     speechSynthesis.speak(utterance);
   }
 
   // ── Turno de conversación ──────────────────────────────────────────────────
 
   function pushUserTurn(text: string) {
-    turnTranscriptRef.current = text;
     setTurns((prev) => [...prev, { role: 'user', content: text }]);
   }
 
   function appendAssistant(text: string) {
-    turnReplyRef.current = `${turnReplyRef.current} ${text}`.trim();
     setTurns((prev) => {
       const last = prev[prev.length - 1];
       if (assistantOpenRef.current && last?.role === 'assistant') {
@@ -213,19 +201,6 @@ export function AiCallWidget() {
       assistantOpenRef.current = true;
       return [...prev, { role: 'assistant', content: text }];
     });
-  }
-
-  /** Cierra el turno en el historial con lo que alcanzó a decirse. Se usa
-   *  cuando el reportero interrumpe: el servidor nunca mandó su `done`. */
-  function commitPartialTurn() {
-    if (!turnTranscriptRef.current) return;
-    historyRef.current = [
-      ...historyRef.current,
-      { role: 'user', content: turnTranscriptRef.current },
-      ...(turnReplyRef.current ? [{ role: 'assistant' as const, content: turnReplyRef.current }] : []),
-    ];
-    turnTranscriptRef.current = '';
-    turnReplyRef.current = '';
   }
 
   function handleEvent(event: StreamEvent) {
@@ -243,16 +218,14 @@ export function AiCallWidget() {
         break;
       case 'done':
         historyRef.current = event.history;
-        turnTranscriptRef.current = '';
-        turnReplyRef.current = '';
         streamDoneRef.current = true;
         if (!serverSpokeRef.current) speakWithBrowser(event.reply);
-        else if (!playingRef.current && stateRef.current !== 'recording') setCallState('listening');
+        else if (!playingRef.current && stateRef.current !== 'recording') setVoiceState('idle');
         break;
       case 'error':
         setErrorMsg(event.message);
         streamDoneRef.current = true;
-        if (!playingRef.current) setCallState('listening');
+        if (!playingRef.current) setVoiceState('idle');
         break;
     }
   }
@@ -260,7 +233,7 @@ export function AiCallWidget() {
   /**
    * Camino rápido. Devuelve false si el servicio desplegado todavía no tiene
    * la ruta de streaming, para caer al camino de una sola respuesta en vez de
-   * dejar al reportero sin llamada.
+   * dejar al reportero sin orientación.
    */
   async function sendStreaming(form: FormData, signal: AbortSignal): Promise<boolean> {
     const response = await fetch(`${AUDIO_SERVICE_URL}/api/incidents/converse/stream`, {
@@ -270,7 +243,7 @@ export function AiCallWidget() {
     if (!response.ok || !response.body) {
       const json = await response.json().catch(() => null) as { error?: { message?: string } } | null;
       setErrorMsg(json?.error?.message ?? `Error del servicio (${response.status})`);
-      setCallState('listening');
+      setVoiceState('idle');
       return true;
     }
 
@@ -292,9 +265,9 @@ export function AiCallWidget() {
     }
 
     // Si el stream se cerró sin `done` (red que se cae a mitad), la cola de voz
-    // igual debe poder terminar y devolver el turno al reportero.
+    // igual debe poder terminar y devolver el control al reportero.
     streamDoneRef.current = true;
-    if (!playingRef.current && stateRef.current === 'processing') setCallState('listening');
+    if (!playingRef.current && stateRef.current === 'processing') setVoiceState('idle');
     return true;
   }
 
@@ -306,7 +279,7 @@ export function AiCallWidget() {
     const json = await response.json() as ConverseResponse & { error?: { message?: string } };
     if (!response.ok) {
       setErrorMsg(json.error?.message ?? `Error del servicio (${response.status})`);
-      setCallState('listening');
+      setVoiceState('idle');
       return;
     }
     historyRef.current = json.history;
@@ -320,20 +293,10 @@ export function AiCallWidget() {
     }
   }
 
-  async function stopRecorderAndSend() {
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state === 'inactive') return;
-    // El estado cambia ANTES de esperar el blob: el VAD sigue muestreando cada
-    // 60 ms y volvería a entrar aquí, parando dos veces el mismo recorder.
-    setCallState('processing');
-    const blob = await new Promise<Blob>((resolve) => {
-      recorder.onstop = () => resolve(new Blob(chunksRef.current, { type: recorder.mimeType }));
-      recorder.stop();
-    });
-    if (hungUp()) return; // colgaron mientras esperábamos
-
+  async function sendTurn(audio: File) {
+    setVoiceState('processing');
     const form = new FormData();
-    form.append('audio', blob, 'turno.webm');
+    form.append('audio', audio, audio.name);
     form.append('history', JSON.stringify(historyRef.current));
 
     const controller = new AbortController();
@@ -341,113 +304,159 @@ export function AiCallWidget() {
     streamDoneRef.current = false;
     serverSpokeRef.current = false;
     assistantOpenRef.current = false;
-    turnTranscriptRef.current = '';
-    turnReplyRef.current = '';
+    // Sin corte, un audio-service colgado deja el botón en "Enviando…" para
+    // siempre. 30 s es de sobra: un turno real responde en 2-5 s.
+    let timedOut = false;
+    const killSwitch = window.setTimeout(() => { timedOut = true; controller.abort(); }, 30_000);
 
     try {
       const streamed = await sendStreaming(form, controller.signal);
       if (!streamed) await sendLegacy(form, controller.signal);
     } catch {
-      // Abortar es lo que hace el barge-in: no es un fallo que reportar.
-      if (controller.signal.aborted) {
-        commitPartialTurn();
+      if (timedOut) {
+        setErrorMsg('El servicio tardó demasiado. Intenta de nuevo.');
+        setVoiceState('idle');
         return;
       }
-      if (!hungUp()) {
-        setErrorMsg('Sin conexión con el servicio de llamada.');
-        setCallState('listening');
-      }
+      // Abortar por pulsar de nuevo mientras responde no es un fallo.
+      if (controller.signal.aborted) return;
+      setErrorMsg('Sin conexión con el servicio de orientación. Vuelve a intentarlo.');
+      setVoiceState('idle');
     } finally {
+      window.clearTimeout(killSwitch);
       if (abortRef.current === controller) abortRef.current = null;
     }
   }
 
-  // ── Detección de voz ───────────────────────────────────────────────────────
+  // ── Pulsar para hablar ─────────────────────────────────────────────────────
 
-  function pollVolume() {
-    pollTimerRef.current = window.setInterval(() => {
-      const current = stateRef.current;
-      const level = currentVolume();
-      const now = Date.now();
-
-      // Interrumpir a la IA mientras habla: corta la voz, aborta lo que quede
-      // del stream y empieza a grabar en el acto.
-      if (current === 'speaking') {
-        if (level <= BARGE_THRESHOLD) { bargeSinceRef.current = 0; return; }
-        if (bargeSinceRef.current === 0) bargeSinceRef.current = now;
-        if (now - bargeSinceRef.current < BARGE_SUSTAIN_MS) return;
-        bargeSinceRef.current = 0;
-        abortRef.current?.abort();
-        stopPlayback();
-        commitPartialTurn();
-        lastLoudAtRef.current = now;
-        speechStartedAtRef.current = now;
-        startRecorder();
-        setCallState('recording');
+  function beginRecording(stream: MediaStream) {
+    chunksRef.current = [];
+    let recorder: MediaRecorder;
+    try {
+      // Algunos navegadores aceptan el mimeType en isTypeSupported pero fallan
+      // al construir con opciones; sin opciones siempre funciona.
+      recorder = new MediaRecorder(stream, recorderOptionsRef.current);
+    } catch {
+      try { recorder = new MediaRecorder(stream); } catch {
+        setErrorMsg('Tu navegador no permite grabar audio aquí. Usa el botón "Llamar al 123".');
+        setVoiceState('idle');
         return;
       }
-
-      if (current !== 'listening' && current !== 'recording') return;
-
-      if (level > SPEECH_THRESHOLD) {
-        lastLoudAtRef.current = now;
-        if (current === 'listening') {
-          speechStartedAtRef.current = now;
-          startRecorder();
-          setCallState('recording');
-        }
-      }
-      if (current === 'recording') {
-        const silentFor = now - lastLoudAtRef.current;
-        const spokeFor = now - speechStartedAtRef.current;
-        if ((silentFor > SILENCE_MS && spokeFor > MIN_SPEECH_MS) || spokeFor > MAX_TURN_MS) {
-          void stopRecorderAndSend();
-        }
-      }
-    }, VAD_POLL_MS);
+    }
+    recorder.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+    recorder.onerror = () => { setErrorMsg('Se cortó la grabación. Intenta de nuevo.'); setVoiceState('idle'); };
+    // timeslice de 250 ms: fuerza a volcar audio mientras se graba, en vez de
+    // un único bloque al final que algunos navegadores entregan incompleto.
+    recorder.start(250);
+    recorderRef.current = recorder;
+    pressStartAtRef.current = Date.now();
+    setVoiceState('recording');
+    maxTimerRef.current = window.setTimeout(() => { void finishRecording(); }, MAX_RECORD_MS);
   }
 
-  async function startCall() {
+  /** Pide micro (si hace falta) y arranca a grabar, salvo que el gesto se haya
+   *  cancelado durante el permiso. `holdingRef` marca "el reportero quiere
+   *  grabar ahora": con puntero lo pone `handlePressStart` y lo quita
+   *  `handlePressEnd`; con teclado lo pone `handleKeyDown` y lo quita
+   *  `finishRecording`. */
+  async function beginTurn() {
     setErrorMsg(null);
-    setTurns([]);
-    historyRef.current = [];
-    void fetch(`${AUDIO_SERVICE_URL}/health`, { cache: 'no-store' }).catch(() => {});
-    try {
-      // Cancelación de eco explícita: es lo que permite el barge-in con el
-      // teléfono en manos libres sin que la IA se interrumpa a sí misma.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      streamRef.current = stream;
-      recorderOptionsRef.current = recorderOptions();
-      const audioCtx = new AudioContext();
-      audioCtxRef.current = audioCtx;
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-      dataArrayRef.current = new Uint8Array(analyser.fftSize);
+    // Pulsar mientras responde = interrumpir y tomar el turno.
+    if (stateRef.current === 'speaking') { abortRef.current?.abort(); stopPlayback(); }
 
-      setCallState('listening');
-      pollVolume();
+    try {
+      const stream = await acquireMic();
+      if (!stream) { holdingRef.current = false; return; }
+      // El permiso pudo tardar; si ya se soltó el botón, o si otro gesto ya
+      // arrancó una grabación, no empezamos otra.
+      if (!holdingRef.current) return;
+      if (recorderRef.current && recorderRef.current.state === 'recording') return;
+      beginRecording(stream);
     } catch {
-      setErrorMsg('No pudimos acceder al micrófono.');
+      holdingRef.current = false;
+      setErrorMsg('No se pudo iniciar la grabación. Intenta de nuevo.');
+      setVoiceState('idle');
     }
   }
 
-  function endCall() {
-    setCallState('idle');
-    if (pollTimerRef.current !== null) window.clearInterval(pollTimerRef.current);
+  function handlePressStart(e: React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    if (stateRef.current === 'processing' || stateRef.current === 'recording') return;
+    holdingRef.current = true;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no soportado: da igual */ }
+    void beginTurn();
+  }
+
+  /** Teclado (accesibilidad): sin "mantener" posible, se alterna — una
+   *  pulsación arranca, la siguiente envía. Espacio/Enter. */
+  function handleKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault(); // evita el scroll y el click sintético del botón
+    if (e.repeat) return;
+    if (stateRef.current === 'recording') { void finishRecording(); return; }
+    if (stateRef.current === 'processing') return;
+    holdingRef.current = true;
+    void beginTurn();
+  }
+
+  async function finishRecording() {
+    holdingRef.current = false;
+    if (maxTimerRef.current !== null) { window.clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === 'inactive') {
+      if (stateRef.current === 'recording') setVoiceState('idle');
+      return;
+    }
+    const heldMs = Date.now() - pressStartAtRef.current;
+    const mimeType = recorder.mimeType || 'audio/webm';
+    const blob = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunksRef.current, { type: mimeType }));
+      recorder.stop();
+    });
+    recorderRef.current = null;
+
+    if (heldMs < MIN_HOLD_MS || blob.size < 1200) {
+      setVoiceState('idle');
+      setErrorMsg('No se grabó nada. Mantén pulsado el botón mientras hablas.');
+      return;
+    }
+    const ext = mimeType.includes('mp4') || mimeType.includes('mpeg') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+    await sendTurn(new File([blob], `turno.${ext}`, { type: mimeType }));
+  }
+
+  function handlePressEnd(e: React.PointerEvent<HTMLButtonElement>) {
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ya liberado */ }
+    if (holdingRef.current || stateRef.current === 'recording') void finishRecording();
+    else holdingRef.current = false;
+  }
+
+  function resetConversation() {
+    abortRef.current?.abort();
+    stopPlayback();
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+    recorderRef.current = null;
+    if (maxTimerRef.current !== null) { window.clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+    holdingRef.current = false;
+    historyRef.current = [];
+    setTurns([]);
+    setErrorMsg(null);
+    setVoiceState('idle');
+    releaseMic();
+  }
+
+  function teardown() {
     abortRef.current?.abort();
     abortRef.current = null;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+    recorderRef.current = null;
+    if (maxTimerRef.current !== null) { window.clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
     stopPlayback();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    void audioCtxRef.current?.close();
-    streamRef.current = null;
-    audioCtxRef.current = null;
+    releaseMic();
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (state === 'unavailable') {
     return (
@@ -460,44 +469,59 @@ export function AiCallWidget() {
     );
   }
 
+  const recording = state === 'recording';
+  const processing = state === 'processing';
+
+  const buttonTone = recording
+    ? 'bg-emergency text-on-emergency animate-pulse'
+    : processing
+      ? 'bg-surface-overlay text-content-secondary cursor-wait'
+      : 'bg-ok text-on-ok';
+
   return (
     <div className="rounded-md bg-surface-raised ring-1 ring-edge-subtle p-4">
       <div className="flex items-center justify-between gap-3">
         <div aria-live="polite">
           <p className="font-semibold text-[15px]">Orientación por voz</p>
-          <p className="text-[13px] text-content-secondary">
-            {state === 'idle' ? 'Habla con la IA mientras esperas la ambulancia.' : STATUS_LABEL[state]}
-          </p>
+          <p className="text-[13px] text-content-secondary">{STATUS_LABEL[state]}</p>
         </div>
-        {state === 'idle' ? (
+        {turns.length > 0 && !recording && !processing && (
           <button
             type="button"
-            onClick={() => void startCall()}
-            aria-label="Iniciar llamada con la IA"
-            className="pressable shrink-0 rounded-full bg-ok hover:bg-ok/90 text-on-ok
-                       flex items-center justify-center"
-            style={{ width: 'var(--touch-comfort)', height: 'var(--touch-comfort)' }}
+            onClick={resetConversation}
+            className="pressable shrink-0 text-[13px] text-content-secondary underline underline-offset-2"
           >
-            <PhoneIcon size={22} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={endCall}
-            aria-label="Colgar"
-            aria-busy
-            className="pressable shrink-0 rounded-full bg-emergency hover:bg-emergency-hover text-on-emergency
-                       flex items-center justify-center"
-            style={{ width: 'var(--touch-comfort)', height: 'var(--touch-comfort)' }}
-          >
-            <PhoneOffIcon size={22} />
+            Terminar
           </button>
         )}
       </div>
 
+      <button
+        type="button"
+        disabled={processing}
+        onPointerDown={handlePressStart}
+        onPointerUp={handlePressEnd}
+        onPointerCancel={handlePressEnd}
+        onKeyDown={handleKeyDown}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label={recording ? 'Grabando: suelta o pulsa para enviar' : 'Mantén pulsado para hablar'}
+        aria-pressed={recording}
+        className={`pressable mt-3 w-full select-none rounded-md px-4 flex items-center justify-center gap-2
+                    font-semibold text-[14px] disabled:opacity-100 ${buttonTone}`}
+        style={{ minHeight: 'var(--touch-comfort)', touchAction: 'none' }}
+      >
+        {processing ? (
+          <><SpinnerIcon size={20} className="animate-spin" /> Esperando respuesta…</>
+        ) : recording ? (
+          <><StopIcon size={20} /> Suelta para enviar</>
+        ) : (
+          <><MicIcon size={20} /> Mantén pulsado para hablar</>
+        )}
+      </button>
+
       {errorMsg && (
         <p role="alert" className="mt-3 flex items-start gap-2 text-emergency text-[13px]">
-          <AlertIcon size={16} /> <span>{errorMsg}</span>
+          <AlertIcon size={16} className="shrink-0 mt-0.5" /> <span>{errorMsg}</span>
         </p>
       )}
 
