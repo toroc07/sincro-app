@@ -30,6 +30,33 @@ Luego abre:
 | `/` | Ciudadano: reporta la emergencia **por voz**, sin login, con confirmación |
 | `/api/track/[token]` | Seguimiento en vivo de la ambulancia con un token, sin cuenta |
 
+### Con Docker (todo el stack, un comando)
+
+```bash
+docker compose up --build
+```
+
+Levanta Postgres, aplica migraciones + seed y arranca los tres servicios:
+
+| Servicio | Host | Contenido |
+|---|---|---|
+| `web` | `localhost:3000` | Next.js (build standalone) |
+| `audio` | `localhost:4001` | audio-service (llamada con IA) |
+| `routing` | `localhost:4002` | rutas A* (el grafo se hornea en el build) |
+| `db` | `localhost:5433` | Postgres 16 (`5433` para no chocar con un Postgres local) |
+
+Las API keys son opcionales: crea un `.env` junto al `docker-compose.yml` con
+`GROQ_API_KEY`, `ELEVENLABS_API_KEY` u `OPENAI_API_KEY` si quieres transcripción
+y resumen IA reales; sin ellas el stack arranca y degrada con gracia.
+`docker compose down -v` para y borra la base.
+
+Suite de verificación en contenedor (typecheck + capas + toda la suite vitest,
+e2e de integración incluido, contra un Postgres efímero):
+
+```bash
+docker compose -f docker-compose.test.yml run --rm ci
+```
+
 > Las antiguas pantallas `/report`, `/responder` y `/command` se unificaron en
 > una sola experiencia ciudadana: grabar → enviar → confirmar.
 

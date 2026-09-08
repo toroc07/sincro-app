@@ -1,0 +1,35 @@
+node_modules
+**/node_modules
+.next
+**/.next
+apps/web/.next-ui-audit
+apps/web/tsconfig.tsbuildinfo
+dist
+**/dist
+*.tsbuildinfo
+.git
+.github
+*.log
+.DS_Store
+
+# Secretos — la config de compose se pasa por environment / .env
+.env
+.env.*
+!.env.docker.example
+
+# Artefacto derivado: se reconstruye en el build de routing
+backend/data/*.pkl
+backend/routing/__pycache__
+**/__pycache__
+
+# No hacen falta en runtime
+demo
+docs
+carpeta pg_api
+HANDOFF.md
+.claude
+.vercel
+.chrome-ui-audit
+.chrome-ui-audit-*
+.ui-audit-*
+.tmp-*.png
