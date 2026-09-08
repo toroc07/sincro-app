@@ -1,6 +1,6 @@
 import { INCIDENT_TYPE } from '@dispatch/contracts';
 import { describe, expect, it } from 'vitest';
-import { classifyAllIncidentTypes, classifyIncidentType } from './voice.js';
+import { __test, classifyAllIncidentTypes, classifyIncidentType } from './voice.js';
 
 describe('classifyIncidentType', () => {
   it.each([
@@ -76,6 +76,37 @@ describe('classifyIncidentType — léxico costeño / coloquial', () => {
   it('"pincharon la llanta" no añade TRAUMA (es mecánica, no un arma)', () => {
     expect(classifyAllIncidentTypes('pincharon la llanta del carro en la autopista'))
       .not.toContain('TRAUMA');
+  });
+});
+
+describe('isLikelyHallucination — audio en silencio que Whisper "rellena"', () => {
+  it.each([
+    'Gracias.',
+    'Gracias',
+    '¡Gracias!',
+    'Muchas gracias por ver el video',
+    'Gracias por ver el vídeo',
+    'Gracias por acompañarnos en este video',
+    'Subtítulos realizados por la comunidad de Amara.org',
+    'Subtítulos por la comunidad de Amara.org',
+    'Suscríbete al canal',
+    '¡Suscríbete!',
+    '...',
+    '.',
+    '¿?',
+    'Hasta la próxima',
+  ])('descarta %j', (text) => {
+    expect(__test.isLikelyHallucination(text)).toBe(true);
+  });
+
+  it.each([
+    'Se cayó mi papá y está sangrando',
+    'Gracias, pero necesito ayuda, hubo un choque',
+    'No respira, vengan rápido',
+    'Estoy en la calle 30 con carrera 40',
+    'Le agradezco pero la señora está inconsciente',
+  ])('NO descarta un reporte real: %j', (text) => {
+    expect(__test.isLikelyHallucination(text)).toBe(false);
   });
 });
 
