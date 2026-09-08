@@ -34,8 +34,9 @@ import { classificationConfidence, type ExtractionOutput } from './extract.js';
 import { CAPABILITY_RANK, PRIORITY_RANK, type CriticalSignals } from './triage.js';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// "instant": es texto corto y la latencia importa mas que el razonamiento.
-const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.1-8b-instant';
+// gpt-oss-20b: es texto corto y la latencia importa mas que el razonamiento.
+// (llama-3.1-8b-instant, el modelo anterior, fue descontinuado por Groq.)
+const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-20b';
 
 /** Presupuesto duro. Corre en el camino de entrada de un reporte de emergencia:
  *  mas alla de esto preferimos despachar con solo-reglas que hacer esperar. */

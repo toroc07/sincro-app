@@ -15,11 +15,12 @@ import { classifyAllIncidentTypes } from './voice.js';
  * responder, no hay conversación — no fingimos una respuesta genérica.
  */
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// "instant" en vez de "versatile": es una llamada en vivo, la latencia importa
-// más que el razonamiento profundo — y ya le damos el protocolo médico hecho
-// en el prompt (firstAid.ts), así que no depende de la "inteligencia" del
-// modelo para responder bien, solo de que lo comunique con calma.
-const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.1-8b-instant';
+// gpt-oss-20b: es una llamada en vivo, la latencia importa más que el
+// razonamiento profundo — y ya le damos el protocolo médico hecho en el
+// prompt (firstAid.ts), así que no depende de la "inteligencia" del modelo
+// para responder bien, solo de que lo comunique con calma. (llama-3.1-8b-instant,
+// el modelo anterior, fue descontinuado por Groq — devolvía 404 en cada turno.)
+const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-20b';
 // Fuerza respuestas cortas: además de más rápidas de generar, es justo lo que
 // pide el prompt (1-3 frases, se leen en voz alta). ~200 tokens ≈ 3-4 frases.
 const GROQ_CHAT_MAX_TOKENS = 200;

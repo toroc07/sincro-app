@@ -29,8 +29,9 @@ const SUMMARY_TIMEOUT_MS = 4_000;
 const SUMMARY_DEBOUNCE_MS = 15_000;
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// "instant": es texto corto, la latencia importa más que el razonamiento.
-const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.1-8b-instant';
+// gpt-oss-20b: es texto corto, la latencia importa más que el razonamiento.
+// (llama-3.1-8b-instant, el modelo anterior, fue descontinuado por Groq.)
+const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-20b';
 /** ~120 tokens ≈ 2-4 frases. El prompt ya pide brevedad; esto lo fuerza. */
 const SUMMARY_MAX_TOKENS = 160;
 
