@@ -2,6 +2,7 @@
 
 import { MAX_AUDIO_SECONDS } from '@dispatch/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createFilteredAudio, VOICE_CAPTURE_CONSTRAINTS } from '@/src/lib/audio/noiseFilter';
 
 export type RecorderState = 'idle' | 'requesting' | 'recording' | 'stopped' | 'unsupported' | 'denied';
 
@@ -64,13 +65,10 @@ export function useAudioRecorder() {
     setState('requesting');
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,   // la calle es ruidosa y la gente se aleja del micro
-        },
-      });
+      // la calle es ruidosa y la gente se aleja del micro — de ahí
+      // autoGainControl; el resto de la limpieza (highpass + compresor) pasa
+      // por createFilteredAudio, ver noiseFilter.ts.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE_CAPTURE_CONSTRAINTS });
     } catch {
       setState('denied');
       return;
@@ -79,12 +77,16 @@ export function useAudioRecorder() {
     streamRef.current = stream;
     chunksRef.current = [];
 
+    const { stream: filteredStream, analyser, audioContext } = createFilteredAudio(stream);
+    audioContextRef.current = audioContext;
+
     // opus es el mejor ratio calidad/peso y es lo que aceptan los motores de
     // transcripcion; Safari solo da mp4, asi que se prueba en orden.
     const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
       .find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? '';
 
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    // Se graba el stream YA FILTRADO, no el crudo del micrófono.
+    const recorder = new MediaRecorder(filteredStream, mimeType ? { mimeType } : undefined);
     recorderRef.current = recorder;
 
     recorder.ondataavailable = (event) => {
@@ -115,12 +117,9 @@ export function useAudioRecorder() {
     };
 
     // Medidor de volumen: prueba visible de que el micrófono está captando.
+    // Sobre la señal YA FILTRADA — así la barra refleja lo que de verdad se
+    // graba, no el ruido crudo que el highpass/compresor van a atenuar.
     try {
-      const context = new AudioContext();
-      audioContextRef.current = context;
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 256;
-      context.createMediaStreamSource(stream).connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
 
       const tick = () => {

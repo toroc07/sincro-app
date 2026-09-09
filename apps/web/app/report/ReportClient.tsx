@@ -1,7 +1,7 @@
 'use client';
 
 import type { ApiError, AudioReportResponse, CitizenSession, IncidentType } from '@dispatch/contracts';
-import { useCallback, useEffect, useRef, useState, type ComponentType, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -10,6 +10,7 @@ import {
   UserIcon,
 } from '@/src/components/ui/icons';
 import { BrandMark } from '@/src/components/ui';
+import { LocationPickerMap } from '@/src/components/map/LocationPickerMap';
 import { useKeepAlive } from '@/src/hooks/useKeepAlive';
 import { useAudioRecorder } from './useAudioRecorder';
 
@@ -17,6 +18,7 @@ type Stage = 'locating' | 'ready' | 'sending';
 interface Position { lat: number; lng: number; accuracyM?: number }
 
 const CARTAGENA = { minLat: 10.38, maxLat: 10.51, minLng: -75.59, maxLng: -75.46 };
+const CARTAGENA_CENTER = { lat: 10.4056, lng: -75.5144 };
 const SEND_TIMEOUT_MS = 20_000;
 
 const QUICK_TYPES: Array<{ type: IncidentType; label: string; Icon: ComponentType<{ size?: number }> }> = [
@@ -95,16 +97,8 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
     return () => { mountedRef.current = false; };
   }, [locate]);
 
-  const pickApproximateLocation = (event: MouseEvent<HTMLButtonElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
-    setPosition({
-      lng: CARTAGENA.minLng + x * (CARTAGENA.maxLng - CARTAGENA.minLng),
-      lat: CARTAGENA.maxLat - y * (CARTAGENA.maxLat - CARTAGENA.minLat),
-      accuracyM: 750,
-    });
-    setLocationPicker(false);
+  const pickApproximateLocation = (point: { lat: number; lng: number }) => {
+    setPosition({ lat: point.lat, lng: point.lng, accuracyM: 750 });
   };
 
   const send = useCallback(async () => {
@@ -240,7 +234,12 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
       </div>
 
       {locationPicker && (
-        <ApproximateLocationPicker onPick={pickApproximateLocation} onClose={() => setLocationPicker(false)} />
+        <LocationPickerMap
+          initial={position ?? CARTAGENA_CENTER}
+          bounds={CARTAGENA}
+          onConfirm={pickApproximateLocation}
+          onClose={() => setLocationPicker(false)}
+        />
       )}
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
@@ -308,25 +307,6 @@ function LocationPanel({ stage, position, retry, openPicker }: {
         <button type="button" onClick={openPicker} className="min-h-touch rounded-xl bg-surface-base px-3 font-semibold ring-1 ring-warn/30">Marcar zona</button>
       </div>
     </div>
-  );
-}
-
-function ApproximateLocationPicker({ onPick, onClose }: {
-  onPick: (event: MouseEvent<HTMLButtonElement>) => void; onClose: () => void;
-}) {
-  return (
-    <section className="mt-3 rounded-2xl border border-edge-subtle bg-surface-raised p-3" aria-labelledby="approx-location-title">
-      <div className="flex items-center justify-between gap-3">
-        <div><h2 id="approx-location-title" className="font-semibold">Marca una zona aproximada</h2><p className="text-xs text-content-muted">Toca el mapa de Cartagena donde estás.</p></div>
-        <button type="button" onClick={onClose} className="min-h-touch px-2 text-sm font-semibold text-content-secondary">Cerrar</button>
-      </div>
-      <button type="button" onClick={onPick} className="map-paper relative mt-3 h-44 w-full overflow-hidden rounded-xl text-left ring-1 ring-edge-subtle" aria-label="Mapa aproximado de Cartagena; toca para marcar tu ubicación">
-        <span className="absolute left-[14%] top-[12%] text-xs font-semibold text-content-muted">Crespo</span>
-        <span className="absolute left-[43%] top-[38%] text-xs font-semibold text-content-muted">Centro</span>
-        <span className="absolute bottom-[18%] left-[18%] text-xs font-semibold text-content-muted">Bocagrande</span>
-        <span className="absolute bottom-3 right-3 rounded-full bg-surface-base/90 px-3 py-1 text-xs font-semibold text-info shadow">Toca para ubicarte</span>
-      </button>
-    </section>
   );
 }
 

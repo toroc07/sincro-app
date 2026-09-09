@@ -1,5 +1,6 @@
 'use client';
 
+import { isWithinCartagena } from '@dispatch/contracts';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -40,6 +41,11 @@ export function useReporterTracking(token: string, enabled: boolean): ReporterGp
       const pos = latestRef.current;
       if (!pos || document.hidden) return;
       if (Date.now() - lastSentAtRef.current < SEND_INTERVAL_MS) return;
+      // El servidor rechaza cualquier punto fuera de Cartagena (§ geofence del
+      // MVP): no tiene sentido gastar la petición ni ensuciar la consola con
+      // un 400 en cada intervalo cuando ya sabemos que va a fallar — p. ej.
+      // probando la app fuera de la ciudad.
+      if (!isWithinCartagena(pos)) return;
       lastSentAtRef.current = Date.now();
       try {
         await fetch(`/api/track/${encodeURIComponent(token)}/location`, {

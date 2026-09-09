@@ -174,10 +174,14 @@ export function LiveRouteMap({
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': '#ffffff', 'line-width': 11, 'line-opacity': 0.9 },
         });
+        // MapLibre valida el color contra el spec del estilo y no resuelve
+        // custom properties de CSS ('var(--info)' revienta con "color
+        // expected... found"): hay que leer el valor computado ya resuelto.
+        const infoColor = getComputedStyle(containerRef.current!).getPropertyValue('--info').trim() || '#0969a2';
         map.addLayer({
           id: 'route-line', type: 'line', source: 'route',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': 'var(--info)', 'line-width': 6 },
+          paint: { 'line-color': infoColor, 'line-width': 6 },
         });
         // Guiones que avanzan hacia el destino: dan sentido de movimiento
         // aunque el GPS tarde en actualizar.

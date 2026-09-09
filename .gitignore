@@ -51,3 +51,5 @@ apps/web/.next-ui-audit/
 .ui-audit-cdp.mjs
 .tmp-*.png
 .chrome-ui-audit-*/
+.vercel
+.env*

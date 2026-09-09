@@ -23,6 +23,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AlertIcon, MicIcon, SpinnerIcon, StopIcon } from '@/src/components/ui/icons';
+import { createFilteredAudio, VOICE_CAPTURE_CONSTRAINTS } from '@/src/lib/audio/noiseFilter';
 
 const AUDIO_SERVICE_URL = process.env.NEXT_PUBLIC_AUDIO_SERVICE_URL ?? '';
 /** Toque demasiado corto: fue un roce, no una frase. Se descarta sin enviar
@@ -76,6 +77,10 @@ export function AiCallWidget() {
   const historyRef = useRef<Turn[]>([]);
   const stateRef = useRef<VoiceState>(state);
   const streamRef = useRef<MediaStream | null>(null);
+  /** Stream ya limpiado (highpass + compresor, ver noiseFilter.ts) — es el
+   *  que de verdad graba el MediaRecorder, no el crudo del micrófono. */
+  const filteredStreamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderOptionsRef = useRef<MediaRecorderOptions>({});
   const chunksRef = useRef<BlobPart[]>([]);
@@ -123,10 +128,11 @@ export function AiCallWidget() {
     if (streamRef.current && streamRef.current.active && live) return streamRef.current;
     releaseMic();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: VOICE_CAPTURE_CONSTRAINTS });
       streamRef.current = stream;
+      const filtered = createFilteredAudio(stream);
+      filteredStreamRef.current = filtered.stream;
+      audioCtxRef.current = filtered.audioContext;
       recorderOptionsRef.current = recorderOptions();
       return stream;
     } catch {
@@ -138,6 +144,9 @@ export function AiCallWidget() {
   function releaseMic() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => { /* ya cerrado */ });
+    audioCtxRef.current = null;
+    filteredStreamRef.current = null;
   }
 
   // ── Reproducción encolada ──────────────────────────────────────────────────
@@ -372,7 +381,9 @@ export function AiCallWidget() {
       // arrancó una grabación, no empezamos otra.
       if (!holdingRef.current) return;
       if (recorderRef.current && recorderRef.current.state === 'recording') return;
-      beginRecording(stream);
+      // Graba el stream ya filtrado (highpass + compresor); el crudo solo se
+      // usa para pedir permiso y comprobar que el track sigue vivo.
+      beginRecording(filteredStreamRef.current ?? stream);
     } catch {
       holdingRef.current = false;
       setErrorMsg('No se pudo iniciar la grabación. Intenta de nuevo.');
