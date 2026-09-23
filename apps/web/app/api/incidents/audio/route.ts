@@ -1,13 +1,12 @@
 import { MAX_AUDIO_BYTES, zAudioReportRequest } from '@dispatch/contracts';
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
-import { createIncidentFromAudio } from '@/src/server/modules/incidents';
+import { createIncidentFromAudio, transcribeAudio } from '@/src/server/modules/incidents';
 import { runDispatch } from '@/src/server/modules/dispatch';
 import { reportRateLimitKeys } from '@/src/server/infra/report-source';
 import { checkReportRateLimit } from '@/src/server/infra/rate-limit';
 import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 import { readIdempotencyKey, readJson } from '../_shared';
 import { createLocalPreviewReport, isLocalPreview } from '@/src/server/demo/localPreview';
-import { transcribeAudio } from '@/src/server/modules/incidents/internal/transcription';
 import { LOW_CONFIDENCE_THRESHOLD } from '@dispatch/contracts';
 
 export const dynamic = 'force-dynamic';

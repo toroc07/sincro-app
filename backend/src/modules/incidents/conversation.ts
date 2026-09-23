@@ -15,15 +15,21 @@ import { classifyAllIncidentTypes } from './voice.js';
  * responder, no hay conversación — no fingimos una respuesta genérica.
  */
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// gpt-oss-20b: es una llamada en vivo, la latencia importa más que el
-// razonamiento profundo — y ya le damos el protocolo médico hecho en el
-// prompt (firstAid.ts), así que no depende de la "inteligencia" del modelo
-// para responder bien, solo de que lo comunique con calma. (llama-3.1-8b-instant,
-// el modelo anterior, fue descontinuado por Groq — devolvía 404 en cada turno.)
+// gpt-oss-20b: es lo que hoy expone Groq (llama-3.1-8b-instant, el modelo
+// anterior, fue descontinuado — devolvía 404 en cada turno). Es un modelo de
+// razonamiento, así que abajo se fuerza `reasoning_effort: 'low'` — es una
+// llamada en vivo y ya le damos el protocolo médico hecho en el prompt
+// (firstAid.ts): no necesita "pensar", solo comunicar con calma. Sin ese freno
+// el razonamiento se come el presupuesto de tokens y la respuesta llega vacía
+// o cortada a media frase.
 const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-20b';
+// `reasoning_effort` mínimo: ~10 tokens de razonamiento en vez de ~150, y la
+// latencia del turno baja a ~0.1s.
+const GROQ_CHAT_REASONING_EFFORT = 'low';
 // Fuerza respuestas cortas: además de más rápidas de generar, es justo lo que
-// pide el prompt (1-3 frases, se leen en voz alta). ~200 tokens ≈ 3-4 frases.
-const GROQ_CHAT_MAX_TOKENS = 200;
+// pide el prompt (1-3 frases, se leen en voz alta). Con margen para el puñado de
+// tokens de razonamiento que deja `reasoning_effort: 'low'`.
+const GROQ_CHAT_MAX_TOKENS = 320;
 
 const CALL_SYSTEM_PROMPT = `Eres un asistente de voz que acompaña a un ciudadano que está reportando una emergencia en Cartagena, Colombia, mientras espera la ambulancia. Hablas como un operador de emergencias calmado y claro, en español, en oraciones cortas — esto se lee en voz alta, no se lee como texto.
 
@@ -89,7 +95,10 @@ export async function converseTurn(userMessage: string, history: readonly Conver
   const response = await fetch(GROQ_CHAT_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS, messages }),
+    body: JSON.stringify({
+      model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS,
+      reasoning_effort: GROQ_CHAT_REASONING_EFFORT, messages,
+    }),
   });
   if (!response.ok) throw new HttpError(502, 'INTERNAL', `El asistente de voz falló (${response.status})`);
 
@@ -120,7 +129,8 @@ export async function streamConverseTurn(
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS, messages, stream: true,
+      model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS,
+      reasoning_effort: GROQ_CHAT_REASONING_EFFORT, messages, stream: true,
     }),
   });
   if (!response.ok) throw new HttpError(502, 'INTERNAL', `El asistente de voz falló (${response.status})`);

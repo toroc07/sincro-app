@@ -438,3 +438,4 @@ export { applyTriage } from './internal/triage';
 export { confirmIncidentType, createIncidentFromAudio } from './internal/audio-intake';
 export { attachReporterContact, getTracking, updateReporterLocation } from './internal/tracking';
 export { buildIncidentSummary, regenerateIncidentSummary } from './internal/summary';
+export { transcribeAudio } from './internal/transcription';

@@ -196,6 +196,7 @@ var zVehicle = z.object({
   id: zId,
   orgId: zId,
   callsign: z.string(),
+  plate: z.string().nullable().optional(),
   status: zVehicleStatus,
   capabilityLevel: zCapabilityLevel,
   capabilities: z.array(z.string()),
@@ -531,6 +532,7 @@ var TRACKING_STEP = [
 ];
 var zTrackingVehicle = z3.object({
   callsign: z3.string(),
+  plate: z3.string().nullable().optional(),
   capabilityLevel: z3.string(),
   lat: z3.number(),
   lng: z3.number(),
@@ -541,6 +543,8 @@ var zTrackingVehicle = z3.object({
 });
 var zTrackingResponse = z3.object({
   incidentCode: z3.string(),
+  /** Transcripción literal del reporte original, si el proveedor de voz pudo procesarlo. */
+  transcript: z3.string().nullable().optional(),
   step: z3.enum(TRACKING_STEP),
   /** Texto ya redactado para el ciudadano. Se genera en el servidor para que
    *  las tres pantallas digan lo mismo y no se reescriba en cada cliente. */
@@ -1098,7 +1102,8 @@ function classifyAllIncidentTypes(text) {
 // src/modules/incidents/conversation.ts
 var GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 var GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || "openai/gpt-oss-20b";
-var GROQ_CHAT_MAX_TOKENS = 200;
+var GROQ_CHAT_REASONING_EFFORT = "low";
+var GROQ_CHAT_MAX_TOKENS = 320;
 var CALL_SYSTEM_PROMPT = `Eres un asistente de voz que acompa\xF1a a un ciudadano que est\xE1 reportando una emergencia en Cartagena, Colombia, mientras espera la ambulancia. Hablas como un operador de emergencias calmado y claro, en espa\xF1ol, en oraciones cortas \u2014 esto se lee en voz alta, no se lee como texto.
 
 Tu funci\xF3n:
@@ -1138,7 +1143,13 @@ async function converseTurn(userMessage, history) {
   const response = await fetch(GROQ_CHAT_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: GROQ_CHAT_MODEL, temperature: 0.4, max_tokens: GROQ_CHAT_MAX_TOKENS, messages })
+    body: JSON.stringify({
+      model: GROQ_CHAT_MODEL,
+      temperature: 0.4,
+      max_tokens: GROQ_CHAT_MAX_TOKENS,
+      reasoning_effort: GROQ_CHAT_REASONING_EFFORT,
+      messages
+    })
   });
   if (!response.ok) throw new HttpError(502, "INTERNAL", `El asistente de voz fall\xF3 (${response.status})`);
   const payload = await response.json();
@@ -1155,6 +1166,7 @@ async function streamConverseTurn(userMessage, history, onDelta) {
       model: GROQ_CHAT_MODEL,
       temperature: 0.4,
       max_tokens: GROQ_CHAT_MAX_TOKENS,
+      reasoning_effort: GROQ_CHAT_REASONING_EFFORT,
       messages,
       stream: true
     })
