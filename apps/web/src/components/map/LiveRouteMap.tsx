@@ -554,15 +554,23 @@ function sliceTo(
 function vehicleElement(label: string): HTMLElement {
   const element = document.createElement('div');
   element.setAttribute('aria-label', label);
-  element.style.cssText = 'position:relative;width:46px;height:46px;display:grid;place-items:center;';
+  element.style.cssText = 'position:relative;width:62px;height:54px;display:grid;place-items:center;filter:drop-shadow(0 5px 4px rgba(15,23,42,.35));';
   element.innerHTML = `
-    <span style="position:absolute;inset:0;border-radius:50%;background:color-mix(in srgb, var(--emergency) 20%, transparent);
+    <span style="position:absolute;inset:5px;border-radius:50%;background:color-mix(in srgb, var(--emergency) 20%, transparent);
                  animation:dispatch-pulse 1.8s ease-out infinite"></span>
-    <span style="position:relative;width:32px;height:32px;border-radius:50%;background:var(--emergency);
-                 box-shadow:0 3px 10px rgba(0,0,0,.32);display:grid;place-items:center">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
-           stroke-width="2.6" stroke-linecap="round">
-        <path d="M12 7v10M7 12h10"/>
+    <span style="position:relative;transform:perspective(90px) rotateX(12deg) rotateZ(-8deg);">
+      <svg width="52" height="42" viewBox="0 0 52 42" fill="none" aria-hidden="true">
+        <path d="m4 29 31 7 13-7-31-8-13 8Z" fill="#991b1b"/>
+        <path d="m4 14 31 7v15L4 29V14Z" fill="#fff" stroke="#cbd5e1" stroke-width="1.2"/>
+        <path d="m35 21 9-6 5 9v5l-14 7V21Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+        <path d="m37 22 6-4 3 6-9 2v-4Z" fill="#9bdcf5" stroke="#64748b" stroke-width=".8"/>
+        <path d="m4 24 31 7v5L4 29v-5Z" fill="#dc2626"/>
+        <path d="m16 14 7 1.6v4.2L16 18v-4Z" fill="#ef4444"/>
+        <path d="m21 15.5 1.3.3v2.8l-1.3-.3v-2.8Zm-2.7-.6 1.3.3V18l-1.3-.3v-2.8Z" fill="white"/>
+        <path d="m12 12 7 1.6v1.8L12 14v-2Z" fill="#dc2626"/>
+        <circle cx="12" cy="31" r="4" fill="#1f2937"/><circle cx="12" cy="31" r="1.8" fill="#cbd5e1"/>
+        <circle cx="39" cy="35" r="4" fill="#1f2937"/><circle cx="39" cy="35" r="1.8" fill="#cbd5e1"/>
+        <path d="m44 28 4-2" stroke="#fef08a" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </span>`;
   return element;

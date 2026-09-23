@@ -19,15 +19,15 @@ const LABELS: Record<TrackingStep, string> = {
   ARRIVED: 'Unidad en el lugar', TRANSPORTING: 'Traslado en curso', COMPLETED: 'Atención completada',
 };
 const STEP_BG: Record<TrackingStep, string> = {
-  RECEIVED: 'bg-[#e44b23]', ASSIGNING: 'bg-[#e6aa12]', ON_THE_WAY: 'bg-info',
-  ARRIVED: 'bg-[#6d28d9]', TRANSPORTING: 'bg-ok', COMPLETED: 'bg-ok',
+  RECEIVED: 'bg-emergency', ASSIGNING: 'bg-warn', ON_THE_WAY: 'bg-info',
+  ARRIVED: 'bg-surface-pressed text-content', TRANSPORTING: 'bg-ok', COMPLETED: 'bg-ok',
 };
 /* Tinta legible sobre el color de cada paso. Estas pantallas son siempre
    tema claro (.app-light), donde --ok y --info son oscuros y aguantan blanco.
    El paso ámbar (#e6aa12) es claro en cualquier tema y necesita tinta negra. */
 const STEP_INK: Record<TrackingStep, string> = {
-  RECEIVED: 'text-white', ASSIGNING: 'text-black', ON_THE_WAY: 'text-white',
-  ARRIVED: 'text-white', TRANSPORTING: 'text-white', COMPLETED: 'text-white',
+  RECEIVED: 'text-white', ASSIGNING: 'text-white', ON_THE_WAY: 'text-white',
+  ARRIVED: 'text-content', TRANSPORTING: 'text-white', COMPLETED: 'text-white',
 };
 const CONFIRM_TYPES: Array<{ type: IncidentType; label: string; Icon: ComponentType<{ size?: number }> }> = [
   { type: 'TRAFFIC_ACCIDENT', label: 'Accidente', Icon: CarCrashIcon },
@@ -102,6 +102,13 @@ export function TrackingClient({ token }: { token: string }) {
       </header>
 
       <StatusHero tracking={tracking} />
+
+      {tracking.transcript && (
+        <section className="mt-4 rounded-2xl border border-edge-subtle bg-surface-raised p-4" aria-labelledby="report-transcript-title">
+          <h2 id="report-transcript-title" className="text-xs font-bold uppercase tracking-[.12em] text-content-muted">Lo que dijo el audio</h2>
+          <p className="mt-2 text-sm leading-relaxed text-content">“{tracking.transcript}”</p>
+        </section>
+      )}
 
       {!tracking.reporterContactOnFile && tracking.step !== 'COMPLETED' && (
         <ReporterContactCard
@@ -186,7 +193,7 @@ function VehicleCard({ tracking, route }: { tracking: TrackingResponse; route: R
   return (
     <section className="state-card mt-4 flex items-center gap-4 p-4">
       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emergency-soft text-emergency"><AmbulanceIcon size={29} /></span>
-      <div className="min-w-0 flex-1"><h2 className="font-bold">Ambulancia {tracking.vehicle.callsign}</h2><p className="text-sm text-content-muted">{tracking.vehicle.capabilityLevel}{distance ? ` · ${distance}` : ''}</p></div>
+      <div className="min-w-0 flex-1"><h2 className="font-bold">Ambulancia {tracking.vehicle.callsign}</h2><p className="text-sm text-content-muted">{tracking.vehicle.plate ? `Placa ${tracking.vehicle.plate} · ` : ''}{tracking.vehicle.capabilityLevel}{distance ? ` · ${distance}` : ''}</p></div>
       <span className={`text-xs font-semibold ${stale ? 'text-warn' : 'text-ok'}`}>{stale ? `GPS hace ${age}s` : 'GPS en vivo'}</span>
     </section>
   );

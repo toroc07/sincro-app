@@ -46,6 +46,7 @@ venv/
 # Build aislado para auditoria visual (NEXT_DIST_DIR) y capturas de pantalla
 # de QA ad-hoc — nunca se versionan (el build pesa decenas de MB).
 apps/web/.next-ui-audit/
+apps/web/.next-build-review/
 .chrome-ui-audit/
 .ui-audit-*.png
 .ui-audit-cdp.mjs

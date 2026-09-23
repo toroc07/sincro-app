@@ -20,12 +20,6 @@ import { assignmentActionOutcome } from './responderState';
  *  RESCUE en el seed para no quedar nunca excluida por capacidad. */
 const UNIVERSAL_VEHICLE_ID = 'seed-vehicle-05';
 
-/** Centro de Cartagena — respaldo cuando el navegador no da permiso de GPS
- *  (o tarda). Sin esto, negar el permiso deja la unidad sin ubicación fresca
- *  para siempre y el despacho nunca encuentra candidato (§ demo: que nunca
- *  se quede sin asignar por un permiso del navegador). */
-const FALLBACK_LOCATION = { lat: 10.4056, lng: -75.5144 };
-
 const GPS_LABELS: Record<GpsState, string> = {
   waiting: 'Buscando GPS', sending: 'GPS en vivo', offline: 'GPS sin conexión',
   denied: 'GPS sin permiso', unsupported: 'GPS no disponible',
@@ -53,10 +47,11 @@ interface ResponderCurrent {
   staff?: { name: string; role: string } | null;
   activeShift?: { callsign: string; shiftId: string } | null;
   universalVehicleId?: string;
+  nearestHospital?: { id: string; name: string; lat: number; lng: number; distanceM: number } | null;
 }
 
 const INITIAL: ResponderCurrent = {
-  incident: null, reportSummary: null, reporterContact: null, reporters: [],
+  incident: null, reportSummary: null, reporterContact: null, reporters: [], nearestHospital: null,
   aiSummary: null, reporterLocation: null,
   assignment: null, assignedVehicle: null,
   staff: null, activeShift: null, universalVehicleId: UNIVERSAL_VEHICLE_ID,
@@ -86,7 +81,7 @@ export function ResponderClient() {
     topics: ['incident:created', 'incident:merged', 'incident:updated', 'assignment:updated', 'vehicle:location'],
     select: selectCurrent,
   });
-  const { incident, reportSummary, reporterContact, reporters, aiSummary, reporterLocation, assignment, assignedVehicle, staff, activeShift } = live.data;
+  const { incident, reportSummary, reporterContact, reporters, reporterLocation, assignment, assignedVehicle, staff, activeShift, nearestHospital } = live.data;
   const vehicleId = live.data.universalVehicleId ?? UNIVERSAL_VEHICLE_ID;
   const tracking = useVehicleTracking(vehicleId, true);
   const [busy, setBusy] = useState(false);
@@ -116,24 +111,6 @@ export function ResponderClient() {
     window.addEventListener('pointerdown', arm, { once: true });
     return () => window.removeEventListener('pointerdown', arm);
   }, []);
-
-  // Late de respaldo con el centro de Cartagena: el despacho excluye una
-  // unidad con ubicación de más de 5 min. Si el navegador niega el GPS o
-  // tarda, esto igual mantiene la unidad "viva" para el motor de despacho —
-  // en cuanto haya GPS real, sus posiciones son más recientes y ganan.
-  useEffect(() => {
-    const send = () => {
-      void fetch(`/api/vehicles/${vehicleId}/location`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ positions: [{ ...FALLBACK_LOCATION, recordedAt: Date.now() }] }),
-      }).catch(() => {
-        // Ignora desconexiones o recargas temporales de red para no disparar overlay
-      });
-    };
-    send();
-    const timer = window.setInterval(send, 20_000);
-    return () => window.clearInterval(timer);
-  }, [vehicleId]);
 
   // Sin Command Center no hay humano que dispare el despacho: la primera
   // pasada corre sola en app/api/incidents/audio/route.ts. Si esa pasada no
@@ -211,6 +188,23 @@ export function ResponderClient() {
     }
   };
 
+  const advanceAssignment = async (action: 'arrive' | 'complete') => {
+    if (!assignment || busy) return;
+    setBusy(true); setMessage(null);
+    try {
+      const response = await fetch(`/api/assignments/${encodeURIComponent(assignment.id)}/${action}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message ?? 'No se pudo actualizar el servicio.');
+      }
+      await live.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No se pudo actualizar el servicio.');
+    } finally { setBusy(false); }
+  };
+
   const notified = Boolean(assignment && assignment.status !== 'OFFERED' && assignment.status !== 'ACCEPTED');
 
   // El reporte TIMBRA, vibra y se lee en voz alta hasta que el conductor pulsa
@@ -227,6 +221,7 @@ export function ResponderClient() {
           address: incident.address,
           patientCount: incident.patientCount,
           priority: incident.priority,
+          transcript: reportSummary,
         }
       : null,
   );
@@ -234,7 +229,10 @@ export function ResponderClient() {
   // El GPS del propio dispositivo va por delante del que ya viajó al servidor:
   // para SU mapa, el conductor debe verse donde está, no donde estaba hace unos
   // segundos. La posición del servidor queda de respaldo.
-  const vehiclePoint = tracking.position ?? assignedVehicle?.location ?? null;
+  const serverPositionIsFresh = assignedVehicle?.location
+    ? Date.now() - assignedVehicle.location.recordedAt < 30_000
+    : false;
+  const vehiclePoint = tracking.position ?? (serverPositionIsFresh ? assignedVehicle?.location ?? null : null);
 
   // La ruta del grafo manda; `estimateEta` en línea recta solo cubre el hueco
   // hasta que llega (o si el servicio de rutas está caído).
@@ -251,8 +249,8 @@ export function ResponderClient() {
       <ResponderHeader
         gps={tracking.state}
         queued={tracking.queued}
-        tone={incident ? (notified ? 'green' : 'red') : 'slate'}
-        status={incident ? (notified ? 'En camino' : 'Reporte activo') : 'En espera'}
+        tone={incident ? 'red' : 'slate'}
+        status={incident ? (assignment?.status === 'ON_SCENE' ? 'En el lugar' : notified ? 'En camino' : 'Reporte activo') : 'En espera'}
         staff={staff}
         activeShift={activeShift}
       />
@@ -282,6 +280,11 @@ export function ResponderClient() {
               onRoute={setRoute}
               height={264}
             />
+            {!vehiclePoint && assignment && (
+              <p className="border-b border-edge-subtle bg-warn-soft px-4 py-2 text-xs font-semibold text-warn">
+                Esperando una ubicación GPS reciente de este dispositivo. No mostramos una posición estimada como si fuera real.
+              </p>
+            )}
 
             {/* Distancia y tiempo primero y en grande: es lo que el conductor
                 mira de reojo mientras conduce. */}
@@ -316,18 +319,12 @@ export function ResponderClient() {
               )}
               {/* Síntesis de la central: junta lo que dijeron TODOS los testigos,
                   con procedencia. Solo aparece si hubo motor de IA. */}
-              {aiSummary && (
-                <div className="mt-3 rounded-xl border border-info/25 bg-info-soft p-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[.12em] text-info">Resumen de la central</p>
-                  <p className="mt-1 text-sm leading-relaxed text-content-secondary">{aiSummary}</p>
-                  <p className="mt-1.5 text-[10px] font-medium text-content-muted">Generado automáticamente · sin verificar</p>
-                </div>
-              )}
               {/* El reporte que estructuró la IA (audio-intake.ts), tal cual — es lo único operativo que ve el responder. */}
               {reportSummary && (
-                <p className="mt-3 rounded-xl bg-surface-overlay p-3 text-sm italic leading-relaxed text-content-secondary">
-                  &ldquo;{reportSummary}&rdquo;
-                </p>
+                <blockquote className="mt-3 rounded-xl border-l-4 border-emergency bg-emergency-soft p-3 text-sm leading-relaxed text-content-secondary">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-emergency">Transcripción del audio</span>
+                  “{reportSummary}”
+                </blockquote>
               )}
               {!assignment && (
                 <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-info">
@@ -337,6 +334,16 @@ export function ResponderClient() {
               )}
             </div>
           </section>
+
+          {assignment?.status === 'ON_SCENE' && nearestHospital && (
+            <section className="mt-3 rounded-2xl border border-info/20 bg-info-soft p-4" aria-label="Hospital más cercano">
+              <p className="text-[10px] font-bold uppercase tracking-[.14em] text-info">Siguiente destino sugerido · más cercano</p>
+              <h2 className="mt-1 font-bold text-content">{nearestHospital.name}</h2>
+              <p className="mt-1 text-sm text-content-secondary">Aprox. {(nearestHospital.distanceM / 1000).toFixed(1)} km del incidente</p>
+              <a className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-info px-4 text-sm font-bold text-on-info" target="_blank" rel="noopener noreferrer"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${nearestHospital.lat},${nearestHospital.lng}&travelmode=driving`}>Navegar al hospital</a>
+            </section>
+          )}
 
           <div className="mt-auto flex flex-col gap-3 pt-5">
             <div className={reporters.length > 1 ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
@@ -402,7 +409,15 @@ export function ResponderClient() {
             </div>
 
             {assignment && (
-              notified ? (
+              assignment.status === 'ON_SCENE' ? (
+                <Button className="responder-action bg-emergency text-white" disabled={busy} onClick={() => void advanceAssignment('complete')}>
+                  {busy ? 'Cerrando servicio…' : 'Confirmar atención y liberar ambulancia'}
+                </Button>
+              ) : assignment.status === 'EN_ROUTE' ? (
+                <Button className="responder-action bg-emergency text-white" disabled={busy} onClick={() => void advanceAssignment('arrive')}>
+                  {busy ? 'Actualizando…' : 'Confirmar llegada al lugar'}
+                </Button>
+              ) : notified ? (
                 <p className="flex items-center justify-center gap-2 rounded-xl bg-ok-soft py-3 font-semibold text-ok">
                   <CheckIcon size={18} /> Ya avisamos que vas en camino
                 </p>
@@ -436,7 +451,7 @@ function ResponderHeader({
   staff?: { name: string; role: string } | null;
   activeShift?: { callsign: string; shiftId: string } | null;
 }) {
-  const backgrounds = { green: 'bg-ok', red: 'bg-emergency', slate: 'bg-[#1f2a3d]' };
+  const backgrounds = { green: 'bg-ok', red: 'bg-emergency', slate: 'bg-info' };
   const danger = gps !== 'sending';
   return (
     <header className={`responder-header ${backgrounds[tone]}`}>

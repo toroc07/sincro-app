@@ -6,6 +6,9 @@ import { reportRateLimitKeys } from '@/src/server/infra/report-source';
 import { checkReportRateLimit } from '@/src/server/infra/rate-limit';
 import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
 import { readIdempotencyKey, readJson } from '../_shared';
+import { createLocalPreviewReport, isLocalPreview } from '@/src/server/demo/localPreview';
+import { transcribeAudio } from '@/src/server/modules/incidents/internal/transcription';
+import { LOW_CONFIDENCE_THRESHOLD } from '@dispatch/contracts';
 
 export const dynamic = 'force-dynamic';
 // `pg` y la transcripcion necesitan APIs de Node; el edge runtime no sirve.
@@ -34,6 +37,22 @@ export async function POST(request: Request): Promise<Response> {
         'VALIDATION_FAILED',
         `El audio supera el máximo de ${Math.round(MAX_AUDIO_BYTES / 1024 / 1024)} MB`,
       );
+    }
+
+    if (isLocalPreview()) {
+      const transcription = await transcribeAudio(Buffer.from(input.audioBase64, 'base64'), input.mimeType);
+      const type = transcription?.suggestedType ?? input.fallbackType ?? 'OTHER';
+      const preview = createLocalPreviewReport({
+        type, lat: input.point.lat, lng: input.point.lng,
+        description: transcription?.transcript ?? null, contact: input.reporterContact ?? null,
+        audioBase64: input.audioBase64, mimeType: input.mimeType,
+      });
+      return Response.json({
+        incidentCode: preview.incident.code, incidentId: preview.incident.id, reportId: preview.reportId,
+        wasMerged: false, transcription,
+        needsConfirmation: !transcription?.suggestedType || (transcription.confidence ?? 0) < LOW_CONFIDENCE_THRESHOLD,
+        trackingToken: preview.token,
+      }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
     }
 
     const idempotencyKey = readIdempotencyKey(request);

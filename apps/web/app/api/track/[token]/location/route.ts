@@ -1,6 +1,7 @@
 import { zReporterLocationRequest } from '@dispatch/contracts';
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
 import { updateReporterLocation } from '@/src/server/modules/incidents';
+import { isLocalPreview, updateLocalPreviewReporterLocation } from '@/src/server/demo/localPreview';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +21,10 @@ export async function POST(
   try {
     const { token } = await params;
     const input = zReporterLocationRequest.parse(await request.json());
+    if (isLocalPreview()) {
+      if (!updateLocalPreviewReporterLocation(token, input.lat, input.lng)) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
+      return Response.json({ accepted: true });
+    }
     const result = await updateReporterLocation(token, input);
     if (!result) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
     return Response.json(result);

@@ -43,11 +43,12 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
   const recorder = useAudioRecorder();
   const [stage, setStage] = useState<Stage>('locating');
   const [position, setPosition] = useState<Position | null>(null);
-  const [locationPicker, setLocationPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackType, setFallbackType] = useState<IncidentType | null>(null);
   const [contactPhone, setContactPhone] = useState<string>(citizen?.phone ?? '');
   const mountedRef = useRef(true);
+  const locationMapRef = useRef<HTMLDivElement>(null);
+  const focusLocationMap = () => locationMapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   // Carga teléfono de sesión o persistido en el dispositivo para reportes anónimos
   useEffect(() => {
@@ -83,7 +84,6 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
       (result) => {
         if (!mountedRef.current) return;
         setPosition({ lat: result.coords.latitude, lng: result.coords.longitude, accuracyM: result.coords.accuracy });
-        setLocationPicker(false);
         setStage('ready');
       },
       () => { if (mountedRef.current) setStage('ready'); },
@@ -193,9 +193,19 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
       <LocationPanel
         stage={stage}
         position={position}
-        openPicker={() => setLocationPicker(true)}
+        openPicker={focusLocationMap}
         retry={locate}
       />
+
+      <div ref={locationMapRef}>
+        <LocationPickerMap
+          initial={position ?? CARTAGENA_CENTER}
+          bounds={CARTAGENA}
+          onConfirm={pickApproximateLocation}
+          onClose={() => {}}
+          closeable={false}
+        />
+      </div>
 
       {/* Entrada de Celular de Contacto en la Pantalla Principal */}
       <div className="mt-2.5 rounded-xl border border-edge-strong bg-surface-base px-3.5 py-2.5 shadow-sm">
@@ -232,15 +242,6 @@ export function ReportClient({ citizen }: { citizen?: CitizenSession | null }) {
           Si no lo pones ahora, te lo pediremos en la pantalla de seguimiento.
         </p>
       </div>
-
-      {locationPicker && (
-        <LocationPickerMap
-          initial={position ?? CARTAGENA_CENTER}
-          bounds={CARTAGENA}
-          onConfirm={pickApproximateLocation}
-          onClose={() => setLocationPicker(false)}
-        />
-      )}
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
         {canRecord && !recording && (

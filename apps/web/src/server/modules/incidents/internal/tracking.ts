@@ -72,6 +72,7 @@ interface AssignmentRow {
   transport_started_at: number | null;
   completed_at: number | null;
   callsign: string;
+  plate: string | null;
   capability_level: string;
   v_lat: number | null;
   v_lng: number | null;
@@ -132,10 +133,16 @@ export async function getTracking(
   );
   if (!incident) return null;
 
+  const transcript = await q.one<{ description: string | null }>(
+    `SELECT description FROM incident_reports WHERE incident_id = ?
+     ORDER BY (id = (SELECT primary_report_id FROM incidents WHERE id = ?)) DESC, created_at LIMIT 1`,
+    [incident.id, incident.id],
+  );
+
   const assignment = await q.one<AssignmentRow & Record<string, unknown>>(
     `SELECT a.id, a.status, a.offered_at, a.responded_at, a.en_route_at, a.arrived_at,
             a.transport_started_at, a.completed_at,
-            v.callsign, v.capability_level,
+            v.callsign, v.plate, v.capability_level,
             l.lat AS v_lat, l.lng AS v_lng, l.heading, l.recorded_at
        FROM assignments a
        JOIN vehicles v ON v.id = a.vehicle_id
@@ -152,7 +159,9 @@ export async function getTracking(
     [incident.id],
   );
 
-  const step = toTrackingStep(incident.status);
+  const step = assignment && ['OFFERED', 'ACCEPTED'].includes(assignment.status)
+    ? 'ASSIGNING'
+    : toTrackingStep(incident.status);
   const now = Date.now();
 
   // ETA recalculado EN VIVO desde la posicion actual del vehiculo, no el ETA
@@ -182,9 +191,9 @@ export async function getTracking(
     { step: 'RECEIVED', at: incident.created_at, label: STEP_LABEL.RECEIVED },
   ];
   if (assignment) {
-    timeline.push({ step: 'ASSIGNING', at: assignment.offered_at, label: STEP_LABEL.ASSIGNING });
-    const enRoute = assignment.en_route_at ?? assignment.responded_at;
-    if (enRoute) timeline.push({ step: 'ON_THE_WAY', at: enRoute, label: STEP_LABEL.ON_THE_WAY });
+    timeline.push({ step: 'ASSIGNING', at: assignment.responded_at ?? assignment.offered_at,
+      label: assignment.status === 'ACCEPTED' ? `Ambulancia ${assignment.callsign} aceptó el servicio` : STEP_LABEL.ASSIGNING });
+    if (assignment.en_route_at) timeline.push({ step: 'ON_THE_WAY', at: assignment.en_route_at, label: STEP_LABEL.ON_THE_WAY });
     if (assignment.arrived_at) {
       timeline.push({ step: 'ARRIVED', at: assignment.arrived_at, label: STEP_LABEL.ARRIVED });
     }
@@ -206,15 +215,19 @@ export async function getTracking(
   // aquí, no en COPY, porque es el único paso donde el texto depende del
   // status crudo y no solo del TrackingStep.
   const cancelled = incident.status === 'CANCELLED';
+  const accepted = assignment?.status === 'ACCEPTED';
   const copy = cancelled
     ? {
         headline: 'Este reporte se cerró',
         detail: 'El centro de despacho cerró este caso sin enviar unidad. Si la emergencia sigue activa, llama al 123.',
       }
-    : COPY[step];
+    : accepted && step === 'ASSIGNING'
+      ? { headline: `La ambulancia ${assignment.callsign} aceptó tu solicitud`, detail: `Unidad ${assignment.callsign}${assignment.plate ? ` · placa ${assignment.plate}` : ''}. El equipo está preparando la salida.` }
+      : COPY[step];
 
   return {
     incidentCode: incident.code,
+    transcript: transcript?.description ?? null,
     step,
     headline: copy.headline,
     // Cuando hay ETA se antepone al detalle: es lo primero que la persona
@@ -227,6 +240,7 @@ export async function getTracking(
     vehicle: assignment && assignment.v_lat != null && assignment.v_lng != null
       ? {
           callsign: assignment.callsign,
+          plate: assignment.plate,
           capabilityLevel: assignment.capability_level,
           lat: assignment.v_lat,
           lng: assignment.v_lng,

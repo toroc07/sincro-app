@@ -20,57 +20,49 @@
    ========================================================================== */
 
 :root {
-  /* Tema por defecto: oscuro (el centro de mando B2G es oscuro). El sistema
-     cambia solo si el SO pide claro (prefers-color-scheme) y ninguna pantalla
-     pidió un tema explícito (`.app-light`). */
-  color-scheme: dark;
+  /* Una misma base clara en las tres experiencias; el rojo identifica la
+     acción urgente y los estados usan verde/ámbar con etiquetas visibles. */
+  color-scheme: light;
 
   /* Superficies. Escala tonal, no negro puro: el negro absoluto sobre OLED
      produce halos alrededor del texto y cansa en lecturas largas. */
-  --surface-base:      #070b14;
-  --surface-raised:    #0f1626;
-  --surface-overlay:   #16203a;
-  --surface-pressed:   #1d2947;
+  --surface-base:      #ffffff;
+  --surface-raised:    #f5f5f3;
+  --surface-overlay:   #ececea;
+  --surface-pressed:   #dededb;
 
-  /* Texto. Verificado contra --surface-base:
-     primary   ~15.8:1  (AAA)
-     secondary  ~7.9:1  (AAA)
-     muted      ~4.6:1  (AA, solo para texto de apoyo no crítico) */
-  --text-primary:   #f5f8ff;
-  --text-secondary: #aebbd4;
-  --text-muted:     #7286a5;
+  /* Escala tipográfica neutra, con contraste AA para texto de apoyo. */
+  --text-primary:   #17191b;
+  --text-secondary: #414448;
+  --text-muted:     #62666b;
 
   /* Emergencia. Es el color de acción, se reserva para eso: si todo grita,
      nada grita. */
-  --emergency:         #ff4557;
-  --emergency-hover:   #ff6472;
-  --emergency-pressed: #e02b3d;
-  --emergency-soft:    rgba(255, 69, 87, 0.14);
-  --emergency-ring:    rgba(255, 69, 87, 0.30);
-  /* Texto sobre fondo BLANCO (pantalla de oferta del responder: máximo
-     contraste bajo sol directo). --emergency normal falla AA sobre blanco. */
+  --emergency:         #d7193f;
+  --emergency-hover:   #bd1235;
+  --emergency-pressed: #a90d2c;
+  --emergency-soft:    rgba(215, 25, 63, 0.09);
+  --emergency-ring:    rgba(215, 25, 63, 0.24);
+  /* Tinta para etiquetas y estados de la marca. */
   --emergency-ink:     #8a0f1e;
 
   /* Estados. Cada uno se acompaña SIEMPRE de icono o texto: el color por sí
      solo no comunica (daltonismo, sol directo, pantalla en escala de grises). */
-  --ok:      #34d99a;
-  --ok-soft: rgba(52, 217, 154, 0.14);
-  --warn:      #ffb224;
-  --warn-soft: rgba(255, 178, 36, 0.14);
-  --info:      #4cc4ff;
-  --info-soft: rgba(76, 196, 255, 0.14);
+  --ok:      #087f5b;
+  --ok-soft: rgba(8, 127, 91, 0.10);
+  --warn:      #a65300;
+  --warn-soft: rgba(166, 83, 0, 0.11);
+  --info:      #35383c;
+  --info-soft: rgba(53, 56, 60, 0.09);
 
-  /* Tinta de los botones de marca (texto/ícono sobre emergency/info/ok/warn).
-     En tema OSCURO los fondos de marca son claros y el blanco falla AA (~3.4:1);
-     se usa una tinta oscura. En tema CLARO los fondos son oscuros y el blanco
-     pasa AA, así que la tinta cambia con el tema (ver media query y .app-light). */
-  --on-emergency: #0a0d14;
-  --on-info:      #0a0d14;
-  --on-ok:        #0a0d14;
-  --on-warn:      #0a0d14;
+  /* Texto blanco sobre las superficies oscuras de acción y estado. */
+  --on-emergency: #ffffff;
+  --on-info:      #ffffff;
+  --on-ok:        #ffffff;
+  --on-warn:      #ffffff;
 
-  --border-subtle: rgba(174, 187, 212, 0.14);
-  --border-strong: rgba(174, 187, 212, 0.28);
+  --border-subtle: rgba(23, 25, 27, 0.11);
+  --border-strong: rgba(23, 25, 27, 0.22);
 
   /* Ritmo de 4/8px. */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
@@ -80,10 +72,10 @@
 
   /* Elevación: sombras que dependen del tema, no sombra negra cruda que se ve
      gris sobre oscuro. B2G usa estas en tarjetas y tarjetas métricas. */
-  --shadow-xs: 0 1px 2px rgba(7, 11, 20, 0.35);
-  --shadow-sm: 0 2px 8px rgba(7, 11, 20, 0.32), 0 1px 2px rgba(7, 11, 20, 0.28);
-  --shadow-md: 0 8px 24px rgba(7, 11, 20, 0.4), 0 2px 8px rgba(7, 11, 20, 0.28);
-  --shadow-lg: 0 20px 48px rgba(7, 11, 20, 0.5), 0 6px 16px rgba(7, 11, 20, 0.3);
+  --shadow-xs: 0 1px 2px rgba(23, 25, 27, 0.06);
+  --shadow-sm: 0 2px 8px rgba(23, 25, 27, 0.06), 0 1px 2px rgba(23, 25, 27, 0.05);
+  --shadow-md: 0 8px 24px rgba(23, 25, 27, 0.1), 0 2px 8px rgba(23, 25, 27, 0.06);
+  --shadow-lg: 0 20px 48px rgba(23, 25, 27, 0.14), 0 6px 16px rgba(23, 25, 27, 0.08);
 
   /* Movimiento: un solo vocabulario para toda la app. */
   --motion-fast:   140ms;
@@ -100,54 +92,52 @@
   --font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
 }
 
-/* Tema claro automático: si el SO pide claro y nadie forzó `.app-light`,
-   este bloque activa los tokens claros sin reescribir componentes. */
 @media (prefers-color-scheme: light) {
   :root:not(.forced-dark) {
     color-scheme: light;
     --surface-base:      #ffffff;
-    --surface-raised:    #f5f7fb;
-    --surface-overlay:   #e9eef6;
-    --surface-pressed:   #dfe6f0;
-    --text-primary:      #0b1526;
-    --text-secondary:    #40506a;
-    --text-muted:        #68758a;
-    --emergency:         #d90429;
-    --emergency-hover:   #ef2346;
-    --emergency-pressed: #b00424;
-    --emergency-soft:    rgba(217, 4, 41, 0.09);
-    --emergency-ring:    rgba(217, 4, 41, 0.24);
+    --surface-raised:    #f5f5f3;
+    --surface-overlay:   #ececea;
+    --surface-pressed:   #dededb;
+    --text-primary:      #17191b;
+    --text-secondary:    #414448;
+    --text-muted:        #62666b;
+    --emergency:         #d7193f;
+    --emergency-hover:   #bd1235;
+    --emergency-pressed: #a90d2c;
+    --emergency-soft:    rgba(215, 25, 63, 0.09);
+    --emergency-ring:    rgba(215, 25, 63, 0.24);
     --ok:                #087f5b;
     --ok-soft:           rgba(8, 127, 91, 0.10);
     --warn:              #a65300;
     --warn-soft:         rgba(166, 83, 0, 0.11);
-    --info:              #0969a2;
-    --info-soft:         rgba(9, 105, 162, 0.10);
+    --info:              #35383c;
+    --info-soft:         rgba(53, 56, 60, 0.09);
     /* En tema claro los fondos de marca son oscuros: el blanco pasa AA. */
     --on-emergency: #ffffff;
     --on-info:      #ffffff;
     --on-ok:        #ffffff;
     --on-warn:      #ffffff;
-    --border-subtle:     rgba(11, 21, 38, 0.11);
-    --border-strong:     rgba(11, 21, 38, 0.22);
-    --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
-    --shadow-sm: 0 2px 8px rgba(11, 21, 38, 0.06), 0 1px 2px rgba(11, 21, 38, 0.05);
-    --shadow-md: 0 8px 24px rgba(11, 21, 38, 0.1), 0 2px 8px rgba(11, 21, 38, 0.06);
-    --shadow-lg: 0 20px 48px rgba(11, 21, 38, 0.14), 0 6px 16px rgba(11, 21, 38, 0.08);
+    --border-subtle:     rgba(23, 25, 27, 0.11);
+    --border-strong:     rgba(23, 25, 27, 0.22);
+    --shadow-xs: 0 1px 2px rgba(23, 25, 27, 0.06);
+    --shadow-sm: 0 2px 8px rgba(23, 25, 27, 0.06), 0 1px 2px rgba(23, 25, 27, 0.05);
+    --shadow-md: 0 8px 24px rgba(23, 25, 27, 0.1), 0 2px 8px rgba(23, 25, 27, 0.06);
+    --shadow-lg: 0 20px 48px rgba(23, 25, 27, 0.14), 0 6px 16px rgba(23, 25, 27, 0.08);
   }
 }
 
-/* Las dos apps moviles siguen la direccion clara creada por Jesus David.
-   Se aisla en una clase para no alterar superficies operativas fuera de alcance. */
+/* La clase histórica se conserva en componentes, pero todos heredan los
+   mismos tokens de marca que el centro de mando. */
 .app-light {
   color-scheme: light;
   --surface-base: #ffffff;
-  --surface-raised: #f5f7fb;
-  --surface-overlay: #e9eef6;
-  --surface-pressed: #dfe6f0;
-  --text-primary: #0b1526;
-  --text-secondary: #40506a;
-  --text-muted: #68758a;
+  --surface-raised: #f5f5f3;
+  --surface-overlay: #ececea;
+  --surface-pressed: #dededb;
+  --text-primary: #17191b;
+  --text-secondary: #414448;
+  --text-muted: #62666b;
   --emergency: #d90429;
   --emergency-hover: #ef2346;
   --emergency-pressed: #b00424;
@@ -157,26 +147,25 @@
   --ok-soft: rgba(8, 127, 91, 0.10);
   --warn: #a65300;
   --warn-soft: rgba(166, 83, 0, 0.11);
-  --info: #0969a2;
-  --info-soft: rgba(9, 105, 162, 0.10);
+  --info: #35383c;
+  --info-soft: rgba(53, 56, 60, 0.09);
   --on-emergency: #ffffff;
   --on-info: #ffffff;
   --on-ok: #ffffff;
   --on-warn: #ffffff;
-  --border-subtle: rgba(11, 21, 38, 0.11);
-  --border-strong: rgba(11, 21, 38, 0.22);
-  --shadow-xs: 0 1px 2px rgba(11, 21, 38, 0.06);
-  --shadow-sm: 0 2px 8px rgba(11, 21, 38, 0.06), 0 1px 2px rgba(11, 21, 38, 0.05);
-  --shadow-md: 0 8px 24px rgba(11, 21, 38, 0.1), 0 2px 8px rgba(11, 21, 38, 0.06);
-  --shadow-lg: 0 20px 48px rgba(11, 21, 38, 0.14), 0 6px 16px rgba(11, 21, 38, 0.08);
+  --border-subtle: rgba(23, 25, 27, 0.11);
+  --border-strong: rgba(23, 25, 27, 0.22);
+  --shadow-xs: 0 1px 2px rgba(23, 25, 27, 0.06);
+  --shadow-sm: 0 2px 8px rgba(23, 25, 27, 0.06), 0 1px 2px rgba(23, 25, 27, 0.05);
+  --shadow-md: 0 8px 24px rgba(23, 25, 27, 0.1), 0 2px 8px rgba(23, 25, 27, 0.06);
+  --shadow-lg: 0 20px 48px rgba(23, 25, 27, 0.14), 0 6px 16px rgba(23, 25, 27, 0.08);
   background: var(--surface-base);
   color: var(--text-primary);
 }
 
-/* El centro de mando B2G es deliberadamente oscuro y no lleva `.app-light`.
-   Esta clase lo aísla del tema claro automático. */
+/* Nombre histórico del contenedor B2G: conserva la clase sin separar la marca. */
 .forced-dark {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .mobile-app-shell {
@@ -399,7 +388,7 @@ h1, h2, h3 {
    oscuro necesitan valores distintos: reforzar con el valor equivocado es
    peor que no reforzar (texto claro sobre fondo blanco desaparece). */
 @media (prefers-contrast: more) {
-  /* Tema oscuro (default y centro de mando). */
+  /* Contraste alto sobre la base clara compartida. */
   :root {
     --text-secondary: #d6e0f2;
     --text-muted:     #aebbd4;

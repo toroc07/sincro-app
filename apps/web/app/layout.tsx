@@ -39,10 +39,7 @@ export const viewport: Viewport = {
   /* Equivale a <meta name="theme-color"> dinámico según el SO.
      Mantiene la barra de estado oscura sobre el centro de mando y clara sobre
      las pantallas móviles, en lugar de forzar oscura siempre. */
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#070b14' },
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-  ],
+  themeColor: '#ffffff',
   // El contenido llega hasta los bordes; las safe-areas se manejan en CSS.
   viewportFit: 'cover',
 };

@@ -2,6 +2,7 @@ import { zIncidentType } from '@dispatch/contracts';
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
 import { confirmIncidentType, getTracking } from '@/src/server/modules/incidents';
 import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
+import { confirmLocalPreviewType, isLocalPreview, localPreviewTracking } from '@/src/server/demo/localPreview';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,11 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { token } = await params;
+    if (isLocalPreview()) {
+      const tracking = localPreviewTracking(token);
+      if (!tracking) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
+      return Response.json(tracking, { headers: { 'Cache-Control': 'no-store' } });
+    }
     // El dispositivo del ciudadano pollea esta ruta cada 4s: dispara el barrido
     // (caducar ofertas, promover retenidos) pero SIN await — la pantalla del
     // ciudadano no debe esperar a ese trabajo; su siguiente poll lo recoge. El
@@ -50,6 +56,13 @@ export async function POST(
     const { token } = await params;
     const body = (await request.json()) as { type?: unknown };
     const type = zIncidentType.parse(body.type);
+
+    if (isLocalPreview()) {
+      if (!confirmLocalPreviewType(token, type)) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
+      const tracking = localPreviewTracking(token);
+      if (!tracking) throw new HttpError(404, 'NOT_FOUND', 'Seguimiento no encontrado');
+      return Response.json(tracking, { headers: { 'Cache-Control': 'no-store' } });
+    }
 
     await confirmIncidentType(token, type);
 

@@ -66,6 +66,7 @@ export function CommandCenterMap({
 
       map.on('load', () => {
         if (cancelled) return;
+        map.resize();
         setReady(true);
       });
 
@@ -105,7 +106,7 @@ export function CommandCenterMap({
           el.className = 'cursor-pointer group';
           el.innerHTML = `
             <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-              <div style="width:${isSelected ? '36px' : '30px'};height:${isSelected ? '36px' : '30px'};border-radius:8px;background:${fac.type === 'TRAUMA_CENTER' ? '#4f46e5' : 'var(--info)'};display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.35);border:2px solid #ffffff;transition:transform 0.2s;">
+              <div style="width:${isSelected ? '36px' : '30px'};height:${isSelected ? '36px' : '30px'};border-radius:8px;background:var(--ok);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.2);border:2px solid #ffffff;transition:transform 0.2s;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round">
                   <path d="M12 4v16m-8-8h16" />
                 </svg>
@@ -266,9 +267,12 @@ export function CommandCenterMap({
   }, [selectedEntity, ready, vehicles, incidents, facilities]);
 
   return (
-    <div className="relative w-full h-full min-h-[420px] rounded-2xl overflow-hidden border border-edge-strong shadow-inner">
+    <div
+      className="relative w-full min-h-[420px] rounded-2xl overflow-hidden border border-edge-strong shadow-inner"
+      style={{ height: 'clamp(420px, calc(100dvh - 360px), 840px)' }}
+    >
       {/* Contenedor del mapa */}
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="h-full w-full" style={{ height: '100%', width: '100%' }} />
 
       {/* Barra de Filtros Flotante */}
       <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2 bg-surface-base/90 backdrop-blur-md p-2 rounded-xl border border-edge-subtle shadow-md text-xs">

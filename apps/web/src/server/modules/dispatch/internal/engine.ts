@@ -14,7 +14,8 @@ import { db, newId, tx, type Queryable } from '@/src/server/infra/db';
 import { calculateCandidates, loadDispatchInputs } from './candidates';
 import {
   acceptOffer, completeOffer, createAtomicAssignment, DispatchNotFoundError,
-  markOfferArrived, markOfferEnRoute, rejectOffer, startOfferTransport,
+  mapAssignment, markOfferArrived, markOfferEnRoute, rejectOffer, startOfferTransport,
+  type AssignmentRow,
   VehicleUnavailableError, type AssignVehicleInput,
 } from './assignment';
 
@@ -208,13 +209,19 @@ export async function getPersistedCandidates(
     staleLocationPenalty: row.stale_location_penalty, operationalPenalty: row.operational_penalty,
     totalScore: row.total_score, excludedReason: row.excluded_reason, explanation: row.explanation,
   }));
-  const candidates = mapped.filter((candidate) => candidate.excludedReason === null);
-  const excluded = mapped.filter((candidate) => candidate.excludedReason !== null);
-  return {
+    const candidates = mapped.filter((candidate) => candidate.excludedReason === null);
+    const excluded = mapped.filter((candidate) => candidate.excludedReason !== null);
+    const activeAssignmentRow = await q.one<AssignmentRow>(
+      `SELECT * FROM assignments WHERE incident_id = ? AND status IN (${ACTIVE_ASSIGNMENT_STATUSES.map(() => '?').join(',')})
+       ORDER BY offered_at DESC LIMIT 1`,
+      [incidentId, ...ACTIVE_ASSIGNMENT_STATUSES],
+    );
+    return {
     dispatchRunId: run.id, incidentId, strategyVersion: run.strategy_version, candidates, excluded,
     recommendedVehicleId: run.recommended_vehicle_id,
     recommendationRationale: run.recommendation_rationale,
-    assignment: null, durationMs: run.duration_ms, computedAt: run.created_at,
+      assignment: activeAssignmentRow ? mapAssignment(activeAssignmentRow) : null,
+      durationMs: run.duration_ms, computedAt: run.created_at,
   };
 }
 

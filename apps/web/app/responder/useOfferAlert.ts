@@ -18,6 +18,7 @@ export interface OfferAlertReport {
   readonly address: string | null;
   readonly patientCount: number;
   readonly priority: string | null;
+  readonly transcript?: string | null;
 }
 
 function buildAnnouncement(report: OfferAlertReport): string {
@@ -25,7 +26,8 @@ function buildAnnouncement(report: OfferAlertReport): string {
   const place = report.address ?? 'ubicación sin confirmar';
   const patients = report.patientCount === 1 ? '1 paciente' : `${report.patientCount} pacientes`;
   const priority = report.priority ? `, prioridad ${report.priority}` : '';
-  return `Nueva emergencia. ${typeLabel} en ${place}. ${patients}${priority}.`;
+  const spokenReport = report.transcript ? `El audio dice: ${report.transcript}.` : '';
+  return `Nueva emergencia. ${typeLabel} en ${place}. ${patients}${priority}. ${spokenReport}`;
 }
 
 /**

@@ -4,6 +4,8 @@ import { getIncidentDetail, getPrimaryReportSummary, listReporterContacts, listL
 import { getStaffProfile } from '@/src/server/modules/staff';
 import { UNIVERSAL_VEHICLE_ID } from '@/src/server/modules/vehicles';
 import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
+import { isLocalPreview, localPreviewResponderCurrent } from '@/src/server/demo/localPreview';
+import { listFacilities } from '@/src/server/modules/facilities';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,7 @@ export const dynamic = 'force-dynamic';
  * Si no, opera con fallback transparente a la ambulancia demo para continuidad del sistema.
  */
 export async function GET(request: Request): Promise<Response> {
+  if (isLocalPreview()) return Response.json(localPreviewResponderCurrent(), { headers: { 'Cache-Control': 'no-store' } });
   try {
     // El panel de ambulancia pollea cada 3 s: es uno de los latidos que hacen
     // cumplir el SLA de despacho (caducar ofertas, promover retenidos). Nunca
@@ -46,11 +49,15 @@ export async function GET(request: Request): Promise<Response> {
         activeShift: staffProfile?.activeShift ?? null,
       });
     }
-    const [detail, summary, reporters] = await Promise.all([
+    const [detail, summary, reporters, facilities] = await Promise.all([
       getIncidentDetail(incident.id),
       getPrimaryReportSummary(incident.id),
       listReporterContacts(incident.id),
+      listFacilities(),
     ]);
+    const nearestHospital = facilities.filter((facility) => facility.type !== 'BASE')
+      .map((facility) => ({ ...facility, distanceM: Math.round(Math.hypot((facility.lat - incident.lat) * 111_000, (facility.lng - incident.lng) * 111_000 * Math.cos(incident.lat * Math.PI / 180))) }))
+      .sort((a, b) => a.distanceM - b.distanceM)[0] ?? null;
     // La posición viva del reportante solo si es fresca (<60s); si no, el mapa
     // pintaría un punto congelado.
     const inc = detail.incident;
@@ -67,6 +74,7 @@ export async function GET(request: Request): Promise<Response> {
       reporterLocation,
       assignment: detail.assignment,
       assignedVehicle: detail.assignedVehicle,
+      nearestHospital,
       liveEtaSeconds: detail.liveEtaSeconds,
       universalVehicleId: vehicleId,
       staff: staffProfile?.user ?? null,

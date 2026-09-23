@@ -80,7 +80,7 @@ export function MetricCard({
             ? 'border-emergency/20 hover:border-emergency/40'
             : variant === 'amber'
               ? 'border-warn/20 hover:border-warn/40'
-              : 'border-info/20 hover:border-info/40'
+              : 'border-edge-strong hover:border-edge-strong'
       }`}
       style={{ animationDelay: `${Math.min(index * 45, 220)}ms` }}
     >

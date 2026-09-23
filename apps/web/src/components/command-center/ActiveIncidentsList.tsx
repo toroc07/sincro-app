@@ -1,15 +1,23 @@
 import type { Incident } from '@dispatch/contracts';
 import { ArrowRightIcon, CheckIcon, LocationIcon } from '@/src/components/ui/icons';
 
+const TYPE_LABELS: Record<string, string> = {
+  TRAFFIC_ACCIDENT: 'Accidente de tránsito', CARDIAC: 'Emergencia cardíaca', UNCONSCIOUS: 'Persona inconsciente',
+  FALL: 'Caída o lesión', RESPIRATORY: 'Dificultad para respirar', OBSTETRIC: 'Emergencia obstétrica', OTHER: 'Otra emergencia', TRAUMA: 'Trauma',
+};
+const STATUS_LABELS: Record<string, string> = { OPEN: 'Pendiente', ASSIGNING: 'Buscando unidad', ASSIGNED: 'Unidad asignada', EN_ROUTE: 'En camino', ON_SCENE: 'En el lugar', TRANSPORTING: 'En traslado' };
+
 interface ActiveIncidentsListProps {
   incidents: Incident[];
   selectedId: string | null;
+  transcripts?: Record<string, string | null>;
   onSelect: (incidentId: string) => void;
 }
 
 export function ActiveIncidentsList({
   incidents,
   selectedId,
+  transcripts,
   onSelect,
 }: ActiveIncidentsListProps) {
   const getPriorityBadge = (priority?: string | null) => {
@@ -87,7 +95,7 @@ export function ActiveIncidentsList({
                   </span>
                   <div className="min-w-0">
                     <h4 className="text-xs font-bold text-content leading-tight truncate">
-                      {inc.type}
+                      {TYPE_LABELS[inc.type] ?? inc.type}
                     </h4>
                     <span className="text-[10px] font-mono text-content-muted tnum">
                       Código: {inc.code}
@@ -100,7 +108,7 @@ export function ActiveIncidentsList({
                     inc.status,
                   )}`}
                 >
-                  {inc.status}
+                    {STATUS_LABELS[inc.status] ?? inc.status}
                 </span>
               </div>
 
@@ -109,6 +117,12 @@ export function ActiveIncidentsList({
                   <LocationIcon size={14} className="shrink-0 text-content-muted" />
                   <span className="truncate">{inc.address}</span>
                 </div>
+              )}
+
+              {transcripts?.[inc.id] && (
+                <p className="mt-2 line-clamp-3 rounded-lg bg-surface-overlay px-2.5 py-2 text-[11px] leading-relaxed text-content-secondary">
+                  <span className="font-bold text-content">Audio: </span>{transcripts[inc.id]}
+                </p>
               )}
 
               <div className="mt-2.5 pt-2 border-t border-edge-subtle flex items-center justify-between text-[10px] text-content-muted">

@@ -1,5 +1,6 @@
 import { db } from '@dispatch/db';
 import { sweepExpiredOffers } from '@/app/api/dispatch/_shared';
+import { isLocalPreview } from '@/src/server/demo/localPreview';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -57,6 +58,7 @@ async function ping(baseUrl: string | undefined): Promise<void> {
 }
 
 export async function GET(): Promise<Response> {
+  if (isLocalPreview()) return Response.json({ ok: true, preview: true });
   const results = await Promise.all([
     probe('audio', () => ping(process.env.AUDIO_SERVICE_URL)),
     probe('routing', () => ping(process.env.ROUTING_SERVICE_URL ?? 'http://127.0.0.1:4002')),

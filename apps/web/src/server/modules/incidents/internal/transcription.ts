@@ -17,18 +17,18 @@ import { logger } from '../../../infra/logger.js';
 
 /** Presupuesto duro. Mas alla de esto preferimos despachar sin transcript que
  *  hacer esperar a quien esta frente a un herido. */
-const TRANSCRIPTION_TIMEOUT_MS = 12_000;
+const TOTAL_TRANSCRIPTION_TIMEOUT_MS = 10_000;
 
 interface Engine {
   name: string;
   isConfigured(): boolean;
-  transcribe(audio: Buffer, mimeType: string): Promise<{ text: string; language: string | null }>;
+  transcribe(audio: Buffer, mimeType: string, timeoutMs: number): Promise<{ text: string; language: string | null }>;
 }
 
 const groq: Engine = {
   name: 'groq-whisper-large-v3-turbo',
   isConfigured: () => Boolean(process.env.GROQ_API_KEY),
-  async transcribe(audio, mimeType) {
+  async transcribe(audio, mimeType, timeoutMs) {
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(audio)], { type: mimeType }), 'report.webm');
     form.append('model', 'whisper-large-v3-turbo');
@@ -40,7 +40,7 @@ const groq: Engine = {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY!}` },
       body: form,
-      signal: AbortSignal.timeout(TRANSCRIPTION_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       throw new Error(`Groq ${response.status}: ${await response.text()}`);
@@ -53,7 +53,7 @@ const groq: Engine = {
 const elevenLabs: Engine = {
   name: 'elevenlabs-scribe',
   isConfigured: () => Boolean(process.env.ELEVENLABS_API_KEY),
-  async transcribe(audio, mimeType) {
+  async transcribe(audio, mimeType, timeoutMs) {
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(audio)], { type: mimeType }), 'report.webm');
     form.append('model_id', 'scribe_v1');
@@ -62,7 +62,7 @@ const elevenLabs: Engine = {
       method: 'POST',
       headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY! },
       body: form,
-      signal: AbortSignal.timeout(TRANSCRIPTION_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       throw new Error(`ElevenLabs ${response.status}: ${await response.text()}`);
@@ -75,7 +75,7 @@ const elevenLabs: Engine = {
 const openAi: Engine = {
   name: 'openai-whisper',
   isConfigured: () => Boolean(process.env.OPENAI_API_KEY),
-  async transcribe(audio, mimeType) {
+  async transcribe(audio, mimeType, timeoutMs) {
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(audio)], { type: mimeType }), 'report.webm');
     form.append('model', 'whisper-1');
@@ -86,7 +86,7 @@ const openAi: Engine = {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!}` },
       body: form,
-      signal: AbortSignal.timeout(TRANSCRIPTION_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
       throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
@@ -110,11 +110,14 @@ export async function transcribeAudio(
   audio: Buffer,
   mimeType: string,
 ): Promise<TranscriptionResult | null> {
+  const startedAt = Date.now();
   for (const engine of ENGINES) {
     if (!engine.isConfigured()) continue;
+    const timeoutMs = TOTAL_TRANSCRIPTION_TIMEOUT_MS - (Date.now() - startedAt);
+    if (timeoutMs <= 0) break;
 
     try {
-      const { text, language } = await engine.transcribe(audio, mimeType);
+      const { text, language } = await engine.transcribe(audio, mimeType, timeoutMs);
       if (!text.trim()) {
         logger.warn('transcripcion vacia', { engine: engine.name });
         continue;

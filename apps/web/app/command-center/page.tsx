@@ -8,6 +8,7 @@ import { MetricCard } from '@/src/components/command-center/MetricCard';
 import { HospitalStatusList } from '@/src/components/command-center/HospitalStatusList';
 import { ActiveIncidentsList } from '@/src/components/command-center/ActiveIncidentsList';
 import { FleetStatusList } from '@/src/components/command-center/FleetStatusList';
+import { DispatchAssignmentPanel } from '@/src/components/command-center/DispatchAssignmentPanel';
 
 interface OverviewData {
   metrics: {
@@ -22,6 +23,7 @@ interface OverviewData {
   };
   vehicles: VehicleWithLocation[];
   incidents: Incident[];
+  transcripts?: Record<string, string | null>;
   facilities: Facility[];
   timestamp: number;
 }
@@ -38,6 +40,9 @@ export default function CommandCenterPage() {
     type: 'vehicle' | 'incident' | 'facility';
     id: string;
   } | null>(null);
+  const selectedIncident = selectedEntity?.type === 'incident'
+    ? data?.incidents.find((incident) => incident.id === selectedEntity.id) ?? null
+    : null;
 
   // Verificar sesión y cargar datos de resumen
   const fetchOverview = useCallback(async () => {
@@ -137,7 +142,7 @@ export default function CommandCenterPage() {
         <MetricCard
           label="Flota de Ambulancias"
           value={metrics.totalVehicles}
-          subtext="Unidades en red distrital"
+          subtext="Ambulancias en servicio"
           variant="sky"
           index={0}
           trend="Total"
@@ -151,7 +156,7 @@ export default function CommandCenterPage() {
         <MetricCard
           label="Ambulancias Disponibles"
           value={metrics.availableVehicles}
-          subtext="Listas para despacho inmediato"
+          subtext="Listas para recibir un reporte"
           variant="emerald"
           index={1}
           trend="En guardia"
@@ -179,7 +184,7 @@ export default function CommandCenterPage() {
         <MetricCard
           label="Emergencias Activas"
           value={metrics.activeIncidents}
-          subtext="Incidentes en curso en la ciudad"
+          subtext="Reportes abiertos en Cartagena"
           variant="rose"
           index={3}
           trend="Reportadas"
@@ -207,7 +212,7 @@ export default function CommandCenterPage() {
         <MetricCard
           label="Red Hospitalaria"
           value={metrics.hospitalsCount}
-          subtext="Hospitales y centros de trauma"
+          subtext="Hospitales y centros de atención"
           variant="indigo"
           index={5}
           trend="Receptores"
@@ -233,7 +238,7 @@ export default function CommandCenterPage() {
         </div>
 
         {/* Lado Derecho: Pestañas Operativas del Centro de Mando */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] flex flex-col bg-surface-base rounded-2xl border border-edge-strong overflow-hidden shadow-xl">
+          <div className="w-full lg:w-[420px] xl:w-[460px] flex flex-col bg-surface-base rounded-2xl border border-edge-strong overflow-hidden shadow-xl">
           {/* Navegación de pestañas */}
           <div className="flex border-b border-edge-strong bg-surface-base/60 p-1.5 gap-1 shrink-0">
             <button
@@ -287,14 +292,22 @@ export default function CommandCenterPage() {
 
           {/* Contenido de la pestaña activa */}
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'incidents' && (
+            {activeTab === 'incidents' && selectedIncident ? (
+              <DispatchAssignmentPanel
+                incident={selectedIncident}
+                transcript={data?.transcripts?.[selectedIncident.id] ?? null}
+                onBack={() => setSelectedEntity(null)}
+                onAssigned={() => void fetchOverview()}
+              />
+            ) : activeTab === 'incidents' ? (
               <ActiveIncidentsList
                 key="incidents"
                 incidents={data?.incidents ?? []}
                 selectedId={selectedEntity?.type === 'incident' ? selectedEntity.id : null}
+                transcripts={data?.transcripts}
                 onSelect={(id) => setSelectedEntity({ type: 'incident', id })}
               />
-            )}
+            ) : null}
 
             {activeTab === 'fleet' && (
               <FleetStatusList

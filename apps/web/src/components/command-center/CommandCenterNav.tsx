@@ -9,6 +9,7 @@ export function CommandCenterNav() {
   const pathname = usePathname();
   const [time, setTime] = useState<string>('');
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     // Reloj en tiempo real
@@ -34,6 +35,7 @@ export function CommandCenterNav() {
       .then((data) => {
         if (data?.user) {
           setUser(data.user);
+          setPreview(Boolean(data.preview));
         }
       })
       .catch(() => {});
@@ -53,7 +55,7 @@ export function CommandCenterNav() {
       {/* Izquierda: Logotipo y Entidad */}
       <div className="flex items-center gap-3">
         <Link href="/command-center" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-info to-[#2563eb] flex items-center justify-center font-black text-on-info text-base tracking-tighter shadow-md">
+          <div className="w-8 h-8 rounded-lg bg-emergency flex items-center justify-center font-black text-on-emergency text-base tracking-tighter shadow-md">
             S
           </div>
           <div>
@@ -61,6 +63,7 @@ export function CommandCenterNav() {
               <span className="font-extrabold text-content tracking-tight text-lg leading-none">
                 SINCRO
               </span>
+              {preview && <span className="rounded bg-warn-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warn">Vista previa local</span>}
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-info-soft border border-info/30 text-info font-semibold tracking-wide">
                 B2G
               </span>

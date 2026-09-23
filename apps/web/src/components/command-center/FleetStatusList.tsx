@@ -97,7 +97,9 @@ export function FleetStatusList({
               <div className="flex items-center gap-3 mt-2 text-[10px] text-content-muted">
                 <span>Velocidad: <strong className="text-content-secondary tnum">{veh.location?.speedKmh ?? 0} km/h</strong></span>
                 <span className="w-1 h-1 rounded-full bg-edge-strong" aria-hidden="true" />
-                <span>{veh.isStale
+                <span>{veh.isSimulated
+                  ? <span className="text-warn">GPS: <strong>Ubicación de muestra</strong></span>
+                  : veh.isStale
                   ? <span className="text-warn">GPS: <strong>Atenuado</strong></span>
                   : <span className="text-ok">GPS: <strong>Tiempo real</strong></span>}
                 </span>

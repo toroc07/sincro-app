@@ -28,12 +28,13 @@ export interface LocationPickerBounds {
 }
 
 export function LocationPickerMap({
-  initial, bounds, onConfirm, onClose,
+  initial, bounds, onConfirm, onClose, closeable = true,
 }: {
   initial: { lat: number; lng: number };
   bounds: LocationPickerBounds;
   onConfirm: (point: { lat: number; lng: number }) => void;
   onClose: () => void;
+  closeable?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -86,14 +87,20 @@ export function LocationPickerMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!mapRef.current) return;
+    centerRef.current = initial;
+    mapRef.current.easeTo({ center: [initial.lng, initial.lat], duration: 400 });
+  }, [initial.lat, initial.lng]);
+
   return (
     <section className="mt-3 rounded-2xl border border-edge-subtle bg-surface-raised p-3" aria-labelledby="approx-location-title">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 id="approx-location-title" className="font-semibold">Marca una zona aproximada</h2>
-          <p className="text-xs text-content-muted">Mueve el mapa hasta ubicar el pin donde estás.</p>
+          <h2 id="approx-location-title" className="font-semibold">Ubicación de la emergencia</h2>
+          <p className="text-xs text-content-muted">Revisa el pin y arrastra el mapa si necesitas corregir el punto.</p>
         </div>
-        <button type="button" onClick={onClose} className="min-h-touch px-2 text-sm font-semibold text-content-secondary">Cerrar</button>
+        {closeable && <button type="button" onClick={onClose} className="min-h-touch px-2 text-sm font-semibold text-content-secondary">Cerrar</button>}
       </div>
 
       <div className="relative mt-3 h-56 w-full overflow-hidden rounded-xl ring-1 ring-edge-subtle">
@@ -119,7 +126,7 @@ export function LocationPickerMap({
         disabled={!ready}
         className="pressable mt-3 w-full min-h-touch rounded-xl bg-emergency font-semibold text-on-emergency disabled:opacity-50"
       >
-        Confirmar esta ubicación
+        Usar este punto
       </button>
     </section>
   );

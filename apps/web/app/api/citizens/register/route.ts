@@ -2,6 +2,7 @@ import { zCitizenRegisterRequest, zCitizenRegisterResponse } from '@dispatch/con
 import { apiErrorResponse, HttpError } from '@/src/server/infra/errors';
 import { citizenSessionCookie } from '@/src/server/infra/citizenSession';
 import { registerCitizen } from '@/src/server/modules/citizens';
+import { isLocalPreview, registerLocalPreviewCitizen } from '@/src/server/demo/localPreview';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,9 @@ async function readJson(request: Request): Promise<unknown> {
 export async function POST(request: Request): Promise<Response> {
   try {
     const input = zCitizenRegisterRequest.parse(await readJson(request));
-    const citizen = await registerCitizen(input);
+    const citizen = isLocalPreview()
+      ? registerLocalPreviewCitizen(input.name, input.phone)
+      : await registerCitizen(input);
     return Response.json(zCitizenRegisterResponse.parse({ citizen }), {
       status: 201,
       headers: { 'Set-Cookie': citizenSessionCookie(citizen) },

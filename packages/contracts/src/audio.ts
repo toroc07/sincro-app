@@ -112,6 +112,7 @@ export type TrackingStep = (typeof TRACKING_STEP)[number];
 
 export const zTrackingVehicle = z.object({
   callsign: z.string(),
+  plate: z.string().nullable().optional(),
   capabilityLevel: z.string(),
   lat: z.number(),
   lng: z.number(),
@@ -124,6 +125,8 @@ export type TrackingVehicle = z.infer<typeof zTrackingVehicle>;
 
 export const zTrackingResponse = z.object({
   incidentCode: z.string(),
+  /** Transcripción literal del reporte original, si el proveedor de voz pudo procesarlo. */
+  transcript: z.string().nullable().optional(),
   step: z.enum(TRACKING_STEP),
   /** Texto ya redactado para el ciudadano. Se genera en el servidor para que
    *  las tres pantallas digan lo mismo y no se reescriba en cada cliente. */

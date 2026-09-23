@@ -100,6 +100,7 @@ export const zVehicle = z.object({
   id: zId,
   orgId: zId,
   callsign: z.string(),
+  plate: z.string().nullable().optional(),
   status: zVehicleStatus,
   capabilityLevel: zCapabilityLevel,
   capabilities: z.array(z.string()),
